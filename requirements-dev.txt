@@ -1,5 +1,2 @@
-black
-flake8
 pdbpp
 python-language-server[all]
-wemake-python-styleguide

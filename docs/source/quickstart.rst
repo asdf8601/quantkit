@@ -2,6 +2,7 @@
 Quick Start
 ===========
 
->>> import quantkit
+.. code-block:: python
 
+   import quantkit as qnt
 

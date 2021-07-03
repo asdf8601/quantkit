@@ -1,0 +1,72 @@
+# This file is a template, and might need editing before it works on your project.
+# To contribute improvements to CI/CD templates, please follow the Development guide at:
+# https://docs.gitlab.com/ee/development/cicd/templates.html
+# This specific template is located at:
+# https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/ci/templates/Python.gitlab-ci.yml
+
+# Official language image. Look for the different tagged releases at:
+# https://hub.docker.com/r/library/python/tags/
+image: python:3.8
+
+# Change pip's cache directory to be inside the project directory since we can
+# only cache local items.
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  TWINE_USERNAME: "$TWINE_USERNAME"
+  TWINE_PASSWORD: "$TWINE_PASSWORD"
+
+cache:
+  paths:
+    - .cache/pip
+    - venv/
+
+before_script:
+  - python -V  # Print out python version for debugging
+  - pip install virtualenv
+  - virtualenv venv
+  - source venv/bin/activate
+
+test:
+  script:
+    - pip install -r requirements-test.txt
+    - pytest tests -v --cov
+    - coverage xml
+  artifacts:
+    reports:
+      cobertura: coverage.xml
+
+lint:
+  script:
+    - pip install -r requirements-lint.txt
+    - flake8 src
+
+run:
+  script:
+    - python setup.py bdist_wheel
+    # an alternative approach is to install and run:
+    - pip install dist/*
+    - python -c "import quantkit"
+  artifacts:
+    paths:
+      - dist/*.whl
+
+pages:
+  script:
+    - pip install -r requirements-doc.txt
+    - cd docs ; make html
+    - mv build/html/ ../public/
+  artifacts:
+    paths:
+      - public
+  only:
+    - tags
+
+pypi:
+  cache: {}
+  script:
+      - pip install -U twine
+      - python setup.py sdist bdist_wheel
+      - twine upload dist/*
+  only:
+      # https://regex101.com/r/bDn9hL/1
+      - /^v\d+\.\d+\.\d+[\.-]?(rc[\.-]?\d*)?$/

@@ -1,5 +1,5 @@
 Welcome to quantkit's documentation!
-================================
+====================================
 
 .. toctree::
    :maxdepth: 1
@@ -7,7 +7,6 @@ Welcome to quantkit's documentation!
 
    install.rst
    quickstart.rst
-   api.rst
 
 
 Indices and tables
