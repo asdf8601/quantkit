@@ -1,19 +1,27 @@
-"""Core module.
-"""
+"""Core module contains common functions to perform finance analysis."""
 import numpy as np
 
 
 def returns(prices, period=1, out=None):
     """Arithmetic Returns.
 
+    Calculate the returns of a price series.
+
     Parameters
     ----------
-    x : array-like
+    prices : array-like
+        Series on which the returns are to be calculated.
     period : int
+        Distance between prices to perform the returns.
+    out : array-like, optional
+        Alternative output array in which to place the result. It must have the
+        same shape and buffer length as the expected output but the type will
+        be cast if necessary.
 
     Returns
     -------
-    out : array-like
+    returns : array-like
+        Returns series.
 
     Examples
     --------
@@ -42,12 +50,20 @@ def cum_returns(returns, first_price=None, out=None):
 
     Parameters
     ----------
-    x : array-like
-    period : int
+    returns : array-like
+        Return series which will be used to perform the calculation.
+    first_price : float, optional
+        Passing a `first_price` you can control the first element of the
+        cummulative returns series performed by this function.
+    out : array-like, optional
+        Alternative output array in which to place the result. It must have the
+        same shape and buffer length as the expected output but the type will
+        be cast if necessary.
 
     Returns
     -------
-    out : array-like
+    cumreturns : array-like
+        Cummulative returns series.
 
     Examples
     --------
@@ -82,12 +98,18 @@ def rebase(prices, base=100, out=None):
     Parameters
     ----------
     prices : array-like
+        Series on which the returns are to be calculated.
     base : float
-    out : array-like
+        `prices` start point.
+    out : array-like, optional
+        Alternative output array in which to place the result. It must have the
+        same shape and buffer length as the expected output but the type will
+        be cast if necessary.
 
     Returns
     -------
-    out : array-like
+    price_rebased : array-like
+        Price series rebased.
     """
 
     if out is None:
