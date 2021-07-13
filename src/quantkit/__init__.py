@@ -1,9 +1,9 @@
 """QuantKit init file."""
-from . import core
+from . import core, decorators
 from ._version import get_versions
 
 __version__ = get_versions()["version"]
 del get_versions
 
 
-__all__ = ["core"]
+__all__ = ["core", "decorators"]
