@@ -26,11 +26,26 @@ before_script:
   - virtualenv venv
   - source venv/bin/activate
 
+run:
+  stage: build
+  script:
+    - python setup.py bdist_wheel
+    # an alternative approach is to install and run:
+    - pip install dist/*
+    - python -c "import quantkit"
+    - pip freeze | tee requirements.txt  # !!! overwrites the original requirements.txt
+  artifacts:
+    paths:
+      - dist/*.whl
+      - requirements.txt
+
 test:
+  stage: test
   script:
     - pip install -r requirements-test.txt
     - pytest tests -v --cov
     - coverage xml
+  needs: ["run"]
   artifacts:
     reports:
       cobertura: coverage.xml
@@ -39,16 +54,6 @@ lint:
   script:
     - pip install -r requirements-lint.txt
     - flake8 src
-
-run:
-  script:
-    - python setup.py bdist_wheel
-    # an alternative approach is to install and run:
-    - pip install dist/*
-    - python -c "import quantkit"
-  artifacts:
-    paths:
-      - dist/*.whl
 
 pages:
   script:
