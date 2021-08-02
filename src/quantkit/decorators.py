@@ -1,4 +1,31 @@
-"""Decorators module."""
+"""Decorators module.
+
+f(x) -> y
+
+x : pandas.DataFrame, pandas.Series, np.array (, list)
+
+f(x): x -> array_protocol -> x_arr -> do stuff -> out : the same type as x
+
+Ej1
+x : np.array[n,m]
+y : np.array[m]
+
+Ej2
+x : pandas.DataFrame
+y : pandas.Series
+
+Ej3
+x : np.array[m]
+y : float
+
+f(x): x -> array_protocol -> x_arr -> do stuff -> out : the same type as x
+
+intput to {pandas, numpy} -> output to {pandas, numpy}:
+
+- array_wrap_reduce  (collapse one dimension)
+- array_wrap_transform  (non-collapsing)
+- array_wrap_increase  (increse one dimension)
+"""
 import pandas as pd
 
 
