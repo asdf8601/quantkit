@@ -11,13 +11,15 @@ WHERE:
     x_t : time series
     y : float
 """
-from quantkit.utils import first_valid_index, last_valid_index
+from quantkit.utils import (
+    first_valid_index,
+    last_valid_index,
+    reduce_array_wrap,
+)
 
 import numpy as np
 
 
-# TODO : implement array_input_wrapper
-# @decorators.array_input_wrapper(0)
 def total_returns(prices, factor=None, relative=True):
     """Calculate arithmetic total return.
 
@@ -87,3 +89,69 @@ def total_returns(prices, factor=None, relative=True):
         raise NotImplementedError
 
     return tot_ret
+
+
+def volatility(returns, factor=None, ddof=1):
+    r"""Calculate the volatility of the arithmetic returns.
+
+    Calculates the volatility :math:`\sigma` over a returns series :math:`r_t`
+    and change the basis of the math:`\sigma` using the factor :math:`F`.
+
+    .. math:
+
+        \sigma = \sqrt{\frac{\sum{(r_t - \bar{r})^2}}{n - \text{ddof}}} \cdot F
+
+    The factor can be help to change the basis of the :math:`\sigma`, for
+    example: converting a `\sigma_{\text{daily}}` in `\sigma_{\text{yearly}}`
+    multiplying it by a factor :math:`F`:
+
+    .. math:
+
+        \sigma _{\text{yearly}} = \sigma_{\text{daily}}{ \sqrt{\frac{252}{12}}}
+
+    The factor above is equal to :math:`F = \sqrt{\frac{252}{12}}`. For more
+    information check out the [ref][1].
+
+    Parameters
+    ----------
+    returns : array-like
+        Data over Volatility will be calculated.
+    factor : float, optional
+        Normalization factor of the volatility result. Use this to change the
+        basis from daily to montly or yearly.
+    ddof : int, optional
+        Degree of freedom. This help to use the unbiased estimation of the
+        standard diviation, [see][2].
+
+    Returns
+    -------
+    volatility : array-like
+
+    References
+    ----------
+    .. [1]: https://en.wikipedia.org/wiki/Volatility_(finance)
+            #Mathematical_definition
+    .. [2]: https://en.wikipedia.org/wiki/
+            Unbiased_estimation_of_standard_deviation
+
+    Examples
+    --------
+    >>> returns = np.array([1, 2, 3]),
+    >>> volatility(returns, factor=None, ddof=1):
+    1
+
+    >>> returns = pd.Series([1, 2, 3]),
+    >>> volatility(returns, factor=None, ddof=1):
+    1
+    """
+    # TODO: automatic factor calculation assuming an index frequency
+    if factor is None:
+        factor = 1
+
+    # TODO: Now I'm assuming that the frequency is bday always
+    arr = returns.__array__()
+
+    vol = np.nanstd(arr, ddof=ddof, axis=0) * factor
+    out = reduce_array_wrap(returns, vol)
+
+    return out
