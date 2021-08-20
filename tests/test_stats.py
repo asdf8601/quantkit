@@ -203,3 +203,76 @@ def test_volatility_yearly():
     expected = sigma_yearly
 
     np.testing.assert_almost_equal(obtained, expected)
+
+
+def test_drawdown_np():
+    data = np.array([4, 3, 1, 1])
+    expected = -3
+    obtained = stats.drawdown(prices=data, relative=False)
+    np.testing.assert_almost_equal(expected, obtained)
+
+
+def test_drawdown_np_relative():
+    data = np.array([4, 3, 1, 1])
+    expected = -0.75
+    obtained = stats.drawdown(prices=data, relative=True)
+    np.testing.assert_almost_equal(expected, obtained)
+
+
+def test_drawdown_np_multidimensional():
+    data = np.array(
+        [[1, 2, 3], [4, 9, 0], [-1, 6, 7]]
+    )
+    expected = np.array([-10, -3, -2])
+    obtained = stats.drawdown(prices=data, relative=False)
+    np.testing.assert_almost_equal(expected, obtained)
+
+
+def test_drawdown_np_multidimensional_relative():
+    data = np.array([[1, 2, 3], [4, 9, 0], [-1, 6, 7]])
+    expected = np.array([-1.1111111111, -0.3333333333, -0.2222222222])
+    obtained = stats.drawdown(prices=data, relative=True)
+    np.testing.assert_almost_equal(expected, obtained, decimal=10)
+
+
+def test_drawdown_pd():
+    data = pd.Series(np.array([4, 3, 1, 1]))
+    expected = -3
+    obtained = stats.drawdown(prices=data, relative=False)
+    np.testing.assert_almost_equal(expected, obtained)
+
+
+def test_drawdown_pd_relative():
+    data = pd.Series(np.array([4, 3, 1, 1]))
+    expected = -0.75
+    obtained = stats.drawdown(prices=data, relative=True)
+    np.testing.assert_almost_equal(expected, obtained)
+
+
+def test_drawdown_pd_multidimensional():
+    data = pd.DataFrame(
+        np.array([[1, 2, 3], [4, 9, 0], [-1, 6, 7]])
+    )
+    expected = pd.Series(np.array([-10, -3, -2]))
+    obtained = stats.drawdown(prices=data, relative=False)
+    pd.testing.assert_series_equal(expected, obtained)
+
+
+def test_drawdown_pd_multidimensional_relative():
+    data = pd.DataFrame(
+        np.array([[1, 2, 3], [4, 9, 0], [-1, 6, 7]])
+    )
+    expected = pd.Series(np.array([-1.11111111, -0.33333333, -0.22222222]))
+    obtained = stats.drawdown(prices=data, relative=True)
+
+    pd.testing.assert_series_equal(expected, obtained)
+
+
+def test_drawdown_nan():
+    data = np.array([4, 1, 0, 2, np.nan])
+    obtained = stats.drawdown(prices=data, relative=False)
+
+
+def test_drawdown_nan_relative():
+    data = np.array([4, 1, 0, 2, np.nan])
+    obtained = stats.drawdown(prices=data, relative=True)
