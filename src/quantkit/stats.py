@@ -155,3 +155,52 @@ def volatility(returns, factor=None, ddof=1):
     out = reduce_array_wrap(returns, vol)
 
     return out
+
+
+def drawdown(prices, relative=True):
+    r"""Compute the drawdown statistic.
+
+    The drawdown of a price process :math:`S` at time :math:`t` is defined as
+    the drop of the asset prices from its running maximum up to time :math:`t`
+
+    .. math::
+
+       D_{t} = \max_{u \in [0, t]}(S_{u}) - S_{t}
+
+    For the whole period, the running maximum is the maximum of the period.
+
+    Parameters
+    ----------
+    prices : array-like
+        Series on which the drawdown is to be calculated.
+    relative : bool, optional
+        Passing True makes the drawdown series relative (in parts per unit).
+
+    Returns
+    -------
+    out : float or array-like
+        Drawdown value.
+
+    References
+    ----------
+    .. [1] Jan Vecer - Maximum Drawdown and Directional Trading
+       http://www.stat.columbia.edu/~vecer/maxdrawdown3.pdf
+    """
+    arr = prices.__array__()
+    last_idx = last_valid_index(array=arr)
+    ndim = arr.ndim
+
+    # if 2 dimensions, indexing has to be carried out in both axis
+    if ndim == 2:
+        col_idx = np.arange(arr.shape[1])
+        last_idx = last_idx, col_idx
+
+    last_element = arr[last_idx]
+    if relative:
+        out = np.divide(last_element, np.nanmax(prices))
+        out -= 1
+    else:
+        out = last_element - np.nanmax(prices)
+
+    out = reduce_array_wrap(prices, out)
+    return out

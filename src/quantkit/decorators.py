@@ -62,6 +62,7 @@ def numpy2pandas_args_wrapper(*pos):
     -------
     decorated_func : function
     """
+
     def maker(func):
         def deco(*args, **kwargs):
 
@@ -72,7 +73,9 @@ def numpy2pandas_args_wrapper(*pos):
                 new_args.append(arg)
 
             return func(*new_args, **kwargs)
+
         return deco
+
     return maker
 
 
@@ -98,10 +101,13 @@ def array_output_wrapper(pos):
     -------
     decorated_func : function
     """
+
     def maker(func):
         def deco(*args, **kwargs):
             argument = args[pos]
             out = func(argument, *args, **kwargs)
             return argument.__array_wrap__(out)
+
         return deco
+
     return maker
