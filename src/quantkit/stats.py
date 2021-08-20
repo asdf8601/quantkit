@@ -204,3 +204,54 @@ def drawdown(prices, relative=True):
 
     out = reduce_array_wrap(prices, out)
     return out
+
+
+def beta(returns, benchmark):
+    r"""Compute systematic risk (beta) of the given returns.
+
+    For beta, we generally understand the the weighting coefficient of a linear
+    regression performed between a return or set of returns and a market 
+    benchmark, usually an index
+
+    .. math::
+
+       r_{i,t} = \alpha_{i} + \beta_{i} \cdot r_{b,t} + \epsilon_{t}
+    
+    where :math:`r_{i,t}` represents the returns of asset :math:`i` at time 
+    :math:`t`, :math:`r_{m,t}` represents the market returns, :math:`\alpha_{i}`
+    is the alpha value, :math:`\beta_{i}` is the beta value and 
+    :mat:`\epsilon_{t}` is and unbiased error term whose squared error should 
+    be minimized.
+
+    Solving the above equation using Ordinary Least Squares (OLS), gives the 
+    following expression to obtain the beta :math:`\beta_{i}`
+
+    .. math::
+
+       \beta_{i} = \dfrac{cov(r_{i}, r_{m})}{var{r_{m}}}
+    
+    Parameters
+    ----------
+    returns : array-like
+        1D or 2D array-like. Asset returns.
+    benchmark : array-like
+        1D array-like. Returns to compare against. Usually, a market index is 
+        used in order to compute the systematic risk.
+
+    Returns
+    -------
+    out : float or array-like
+
+    """
+    # TODO: deal with nan values
+    arr_returns = returns.__array__()
+    arr_bench = np.atleast_2d(benchmark.__array__())
+
+    # compute covariance matrix
+    _stacked = np.stack((arr_bench, arr_returns.T))
+    cov_matrix = np.cov(_stacked, rowvar=True)
+
+    # compute beta
+    out = cov_matrix[1:, 0] / cov_matrix[0, 0]
+    out = reduce_array_wrap(returns, out)
+    return out

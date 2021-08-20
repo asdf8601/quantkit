@@ -276,3 +276,19 @@ def test_drawdown_nan():
 def test_drawdown_nan_relative():
     data = np.array([4, 1, 0, 2, np.nan])
     obtained = stats.drawdown(prices=data, relative=True)
+
+
+def test_beta_np():
+    pass
+
+
+def test_beta_np_nan():
+    pass
+
+
+def test_beta_pd():
+    pass
+
+
+def test_beta_pd_nan():
+    pass
