@@ -264,31 +264,69 @@ def test_drawdown_pd_multidimensional_relative():
     )
     expected = pd.Series(np.array([-1.11111111, -0.33333333, -0.22222222]))
     obtained = stats.drawdown(prices=data, relative=True)
-
     pd.testing.assert_series_equal(expected, obtained)
 
 
 def test_drawdown_nan():
     data = np.array([4, 1, 0, 2, np.nan])
     obtained = stats.drawdown(prices=data, relative=False)
+    expected = -2
+    np.testing.assert_almost_equal(obtained, expected)
 
 
 def test_drawdown_nan_relative():
     data = np.array([4, 1, 0, 2, np.nan])
     obtained = stats.drawdown(prices=data, relative=True)
+    expected = -0.5
+    np.testing.assert_almost_equal(obtained, expected)
 
 
 def test_beta_np():
-    pass
+    returns = np.array([ 0.11,  0.17,  0.21,  0.18, -0.08, -0.12])
+    benchmark = np.array([ 0.08,  0.1 ,  0.13,  0.11, -0.03, -0.05])
+
+    expected = 1.8510158013544014
+    obtained = stats.beta(returns, benchmark)
+    np.testing.assert_almost_equal(expected, obtained)
 
 
-def test_beta_np_nan():
-    pass
+def test_beta_np_2d():
+    benchmark = np.array([0.08, 0.1, 0.13, 0.11, -0.03, -0.05])
+    returns = np.array([
+        [0.5, 0.2],
+        [0.2, 0.4],
+        [-0.3, 0.6],
+        [-0.1, 0.1],
+        [0.8, 0.67],
+        [0.9, 0.43]
+    ])
+
+    expected = np.array([-5.835214446952595, -1.1038374717832957])
+    obtained = stats.beta(returns, benchmark)
+    np.testing.assert_almost_equal(expected, obtained)
 
 
 def test_beta_pd():
-    pass
+    returns = pd.Series(np.array([0.11, 0.17, 0.21, 0.18, -0.08, -0.12]))
+    benchmark = pd.Series(np.array([0.08, 0.1, 0.13, 0.11, -0.03, -0.05]))
+
+    expected = 1.8510158013544014
+    obtained = stats.beta(returns, benchmark)
+    np.testing.assert_almost_equal(expected, obtained) # is a number
 
 
-def test_beta_pd_nan():
-    pass
+def test_beta_pd_2d():
+    _returns = np.array([
+        [0.5, 0.2],
+        [0.2, 0.4],
+        [-0.3, 0.6],
+        [-0.1, 0.1],
+        [0.8, 0.67],
+        [0.9, 0.43]
+    ])
+    returns = pd.DataFrame(_returns)
+    benchmark = pd.Series(np.array([0.08, 0.1, 0.13, 0.11, -0.03, -0.05]))
+
+    expected = pd.Series([-5.835214446952595, -1.1038374717832957])
+    obtained = stats.beta(returns, benchmark)
+    pd.testing.assert_series_equal(expected, obtained)

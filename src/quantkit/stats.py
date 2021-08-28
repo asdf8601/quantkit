@@ -209,7 +209,7 @@ def drawdown(prices, relative=True):
 def beta(returns, benchmark):
     r"""Compute systematic risk (beta) of the given returns.
 
-    For beta, we generally understand the the weighting coefficient of a linear
+    For beta, we generally understand the weighting coefficient of a linear
     regression performed between a return or set of returns and a market 
     benchmark, usually an index
 
@@ -220,7 +220,7 @@ def beta(returns, benchmark):
     where :math:`r_{i,t}` represents the returns of asset :math:`i` at time 
     :math:`t`, :math:`r_{m,t}` represents the market returns, :math:`\alpha_{i}`
     is the alpha value, :math:`\beta_{i}` is the beta value and 
-    :mat:`\epsilon_{t}` is and unbiased error term whose squared error should 
+    :mat:`\epsilon_{t}` is an unbiased error term whose squared error should 
     be minimized.
 
     Solving the above equation using Ordinary Least Squares (OLS), gives the 
@@ -240,18 +240,36 @@ def beta(returns, benchmark):
 
     Returns
     -------
-    out : float or array-like
+    beta : float or array-like
+        Beta coefficient.
+
+    References
+    ----------
+    .. [1] Wikipedia - Beta (finance)
+       https://en.wikipedia.org/wiki/Beta_(finance)
+
+    Note
+    ----
+    Estimating the covariance with nan values is very tricky. For instance, 
+    what should be the covariance between two arrays with nan's at different
+    time steps? It doesn't really make sense to compute covariance that way and
+    that's why we've chosen not to be nan-compatible in this function and leave
+    the user the decision of what to make.
 
     """
-    # TODO: deal with nan values
     arr_returns = returns.__array__()
     arr_bench = np.atleast_2d(benchmark.__array__())
 
     # compute covariance matrix
-    _stacked = np.stack((arr_bench, arr_returns.T))
+    _stacked = np.vstack((arr_bench, arr_returns.T))
     cov_matrix = np.cov(_stacked, rowvar=True)
 
     # compute beta
-    out = cov_matrix[1:, 0] / cov_matrix[0, 0]
-    out = reduce_array_wrap(returns, out)
-    return out
+    beta = cov_matrix[1:, 0] / cov_matrix[0, 0]
+
+    b_shape = beta.shape
+    if b_shape == (1, ) or b_shape == (1,1):
+        beta = beta.item()
+
+    beta = reduce_array_wrap(returns, beta)
+    return beta
