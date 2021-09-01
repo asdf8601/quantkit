@@ -11,6 +11,7 @@ WHERE:
     x_t : time series
     y : float
 """
+from pandas._libs import algos as libalgos
 from quantkit.utils import (
     first_valid_index,
     last_valid_index,
@@ -250,19 +251,16 @@ def beta(returns, benchmark):
 
     Note
     ----
-    Estimating the covariance with nan values is very tricky. For instance, 
-    what should be the covariance between two arrays with nan's at different
-    time steps? It doesn't really make sense to compute covariance that way and
-    that's why we've chosen not to be nan-compatible in this function and leave
-    the user the decision of what to make.
+    Because estimating the covariance with missing data can be very tricky, we
+    decided to delegate the covariance matrix estimation in Pandas.
 
     """
     arr_returns = returns.__array__()
     arr_bench = np.atleast_2d(benchmark.__array__())
 
     # compute covariance matrix
-    _stacked = np.vstack((arr_bench, arr_returns.T))
-    cov_matrix = np.cov(_stacked, rowvar=True)
+    _stacked = np.vstack((arr_bench, arr_returns.T)).T
+    cov_matrix = libalgos.nancorr(_stacked, cov=True)
 
     # compute beta
     beta = cov_matrix[1:, 0] / cov_matrix[0, 0]
