@@ -46,9 +46,6 @@ test:
     - pytest tests -v --cov
     - coverage xml
   needs: ["run"]
-  artifacts:
-    reports:
-      cobertura: coverage.xml
 
 lint:
   script:
