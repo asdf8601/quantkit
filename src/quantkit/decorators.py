@@ -27,6 +27,9 @@ intput to {pandas, numpy} -> output to {pandas, numpy}:
 - array_wrap_increase  (increse one dimension)
 """
 import pandas as pd
+from quantkit.utils import iloc
+
+from functools import wraps
 
 
 def _np2pd(np_obj):
@@ -41,6 +44,8 @@ def _np2pd(np_obj):
     elif np_obj.ndim == 2:
         # is a numpy object
         pd_obj = pd.DataFrame(np_obj)
+    else:
+        raise NotImplementedError
 
     return pd_obj
 
@@ -62,10 +67,9 @@ def numpy2pandas_args_wrapper(*pos):
     -------
     decorated_func : function
     """
-
     def maker(func):
+        @wraps(func)
         def deco(*args, **kwargs):
-
             new_args = []
             for arg_i, arg in enumerate(args):
                 if arg_i in pos:
@@ -101,8 +105,8 @@ def array_output_wrapper(pos):
     -------
     decorated_func : function
     """
-
     def maker(func):
+        @wraps(func)
         def deco(*args, **kwargs):
             argument = args[pos]
             out = func(argument, *args, **kwargs)
@@ -111,3 +115,62 @@ def array_output_wrapper(pos):
         return deco
 
     return maker
+
+
+def reduce_array_wrap(obj, res):
+    """Array wrap for reducing functions.
+
+    Allow easly wrap the result of a reducing function in the proper dimension
+    of the original array-like object.
+
+    Parameters
+    ----------
+    obj : pandas or numpy
+        Object to access.
+    res : array-like or number
+        Indexer allowed by `obj`.
+
+    Returns
+    -------
+    out : array-like or number
+
+    Raises
+    ------
+    NotImplementedError
+        If ``obj`` has higher dimension than 2 or less than 1.
+
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> import pandas as pd
+
+    Numpy objects
+
+    >>> obj = np.array([[0], [1]])
+    >>> obj_reduced = np.array([22])
+    >>> reduce_array_wrap(obj, obj_reduced)
+
+    Pandas objects
+
+    >>> obj = pd.DataFrame(np.array([[0], [1]]))
+    >>> obj_reduced = np.array([22])
+    >>> reduce_array_wrap(obj, obj_reduced)
+
+    More realistic example
+
+    >>> obj = pd.DataFrame(np.array([[0], [1]]))
+    >>> obj_reduced = obj.sum()  # apply a reduction function
+    >>> reduce_array_wrap(obj, obj_reduced)
+    """
+    ndim = obj.ndim
+
+    if ndim == 2:
+        new_obj = iloc(obj, 0)
+        out = new_obj.__array_wrap__(res)
+    elif ndim == 1:
+        out = res
+    else:
+        raise NotImplementedError
+
+    return out

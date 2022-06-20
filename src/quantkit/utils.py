@@ -100,39 +100,3 @@ def iloc(obj, idx):
         raise NotImplementedError
 
     return out
-
-
-def reduce_array_wrap(obj, res):
-    """Array wrap for reducing functions.
-
-    Allow easly wrap the result of a reducing function in the proper dimension
-    of the original array-like object.
-
-    Parameters
-    ----------
-    obj : pandas or numpy
-        Object to access.
-    res : array-like or number
-        Indexer allowed by `obj`.
-
-    Returns
-    -------
-    out : array-like or number
-
-    Raises
-    ------
-    NotImplementedError
-        If ``obj`` has higher dimension than 2 or less than 1.
-    """
-
-    ndim = obj.ndim
-
-    if ndim == 2:
-        new_obj = iloc(obj, 0)
-        out = new_obj.__array_wrap__(res)
-    elif ndim == 1:
-        out = res
-    else:
-        raise NotImplementedError
-
-    return out
