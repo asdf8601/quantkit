@@ -16,6 +16,7 @@ from quantkit.utils import (
     last_valid_index,
     reduce_array_wrap,
 )
+from quantkit import expanding
 
 import numpy as np
 
@@ -202,5 +203,51 @@ def drawdown(prices, relative=True):
     else:
         out = last_element - np.nanmax(prices)
 
+    out = reduce_array_wrap(prices, out)
+    return out
+
+
+def max_drawdown(prices, relative=True):
+    r"""Calculate the Maximum Drawdown.
+
+    Max drawdown is the maximum potential loss of the trading system. Drawdown
+    is defined as the distance between a given point and the highest point
+    before it on the equity curve:
+
+    .. math::
+
+        D_{t} = \max_{u \in [0, t]}(S_{u}) - S_{t}
+
+    "Max drawdown" is the largest drawdown value observed in the given time
+    series for the whole period.
+
+    .. math::
+
+        MD_{T} = \max_{t \in [0, T] ( \max_{u \in [0, k]}(S_{u}) - S_{t} )
+
+    Parameters
+    ----------
+    prices : array-like
+        Series on which the drawdown is to be calculated.
+    relative : bool, optional
+        Passing True makes the drawdown series relative (in parts per unit).
+
+    Returns
+    -------
+    out : float or array-like
+        Maximum Drawdown value.
+
+    Examples
+    --------
+    >>> prices = np.array([1, 2, 3])]
+    >>> max_drawdown(prices)
+    0
+
+    >>> prices = np.array([1, 0, 3])]
+    >>> max_drawdown(prices)
+    -1
+    """
+    dd = expanding.drawdown(prices, relative=relative)
+    out = np.nanmin(dd, axis=0)
     out = reduce_array_wrap(prices, out)
     return out

@@ -276,3 +276,115 @@ def test_drawdown_nan():
 def test_drawdown_nan_relative():
     data = np.array([4, 1, 0, 2, np.nan])
     obtained = stats.drawdown(prices=data, relative=True)
+
+
+def test_max_drawdown_np():
+    data = np.array([1, 0, 2])
+    obtained = stats.max_drawdown(prices=data, relative=True)
+    expected = -1
+    np.testing.assert_almost_equal(obtained, expected)
+
+
+def test_max_drawdown_np_0():
+    data = np.array([1, 2, 3])
+    obtained = stats.max_drawdown(prices=data, relative=True)
+    expected = 0
+    np.testing.assert_almost_equal(obtained, expected)
+
+
+def test_max_drawdown_np_2d():
+    data = np.array([[1, 0, 3]]).T  # .T to make it columnar
+    obtained = stats.max_drawdown(prices=data, relative=True)
+    expected = np.array([-1])
+    np.testing.assert_almost_equal(obtained, expected)
+
+
+def test_max_drawdown_np_0_2d():
+    data = np.array([[1, 2, 3]]).T  # .T to make it columnar
+    obtained = stats.max_drawdown(prices=data, relative=True)
+    expected = np.array([0])
+    np.testing.assert_almost_equal(obtained, expected)
+
+
+def test_max_drawdown_pd():
+    data = pd.Series([1, 0, 2])
+    obtained = stats.max_drawdown(prices=data, relative=True)
+    expected = -1
+    np.testing.assert_almost_equal(obtained, expected)
+
+
+def test_max_drawdown_pd_0():
+    data = pd.Series([1, 2, 3])
+    obtained = stats.max_drawdown(prices=data, relative=True)
+    expected = 0
+    np.testing.assert_almost_equal(obtained, expected)
+
+
+def test_max_drawdown_pd_2d():
+    data = pd.DataFrame([[1, 0, 3]]).T  # .T to make it columnar
+    obtained = stats.max_drawdown(prices=data, relative=True)
+    expected = pd.Series([-1], dtype=float)
+    pd.testing.assert_series_equal(obtained, expected)
+
+
+def test_max_drawdown_pd_0_2d():
+    data = pd.DataFrame([[1, 2, 3]]).T  # .T to make it columnar
+    obtained = stats.max_drawdown(prices=data, relative=True)
+    expected = pd.Series([0], dtype=float)
+    pd.testing.assert_series_equal(obtained, expected)
+
+
+def test_max_drawdown_np_nan():
+    data = np.array([np.nan, 1, 0, 2])
+    obtained = stats.max_drawdown(prices=data, relative=True)
+    expected = -1
+    np.testing.assert_almost_equal(obtained, expected)
+
+
+def test_max_drawdown_np_0_nan():
+    data = np.array([np.nan, 1, 2, 3])
+    obtained = stats.max_drawdown(prices=data, relative=True)
+    expected = 0
+    np.testing.assert_almost_equal(obtained, expected)
+
+
+def test_max_drawdown_np_2d_nan():
+    data = np.array([[np.nan, 1, 0, 3]]).T  # .T to make it columnar
+    obtained = stats.max_drawdown(prices=data, relative=True)
+    expected = np.array([-1])
+    np.testing.assert_almost_equal(obtained, expected)
+
+
+def test_max_drawdown_np_0_2d_nan():
+    data = np.array([[np.nan, 1, 2, 3]]).T  # .T to make it columnar
+    obtained = stats.max_drawdown(prices=data, relative=True)
+    expected = np.array([0])
+    np.testing.assert_almost_equal(obtained, expected)
+
+
+def test_max_drawdown_pd_nan():
+    data = pd.Series([np.nan, 1, 0, 2])
+    obtained = stats.max_drawdown(prices=data, relative=True)
+    expected = -1
+    np.testing.assert_almost_equal(obtained, expected)
+
+
+def test_max_drawdown_pd_0_nan():
+    data = pd.Series([np.nan, 1, 2, 3])
+    obtained = stats.max_drawdown(prices=data, relative=True)
+    expected = 0
+    np.testing.assert_almost_equal(obtained, expected)
+
+
+def test_max_drawdown_pd_2d_nan():
+    data = pd.DataFrame([[np.nan, 1, 0, 3]]).T  # .T to make it columnar
+    obtained = stats.max_drawdown(prices=data, relative=True)
+    expected = pd.Series([-1], dtype=float)
+    pd.testing.assert_series_equal(obtained, expected)
+
+
+def test_max_drawdown_pd_0_2d_nan():
+    data = pd.DataFrame([[np.nan, 1, 2, 3]]).T  # .T to make it columnar
+    obtained = stats.max_drawdown(prices=data, relative=True)
+    expected = pd.Series([0], dtype=float)
+    pd.testing.assert_series_equal(obtained, expected)
