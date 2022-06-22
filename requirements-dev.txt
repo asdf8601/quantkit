@@ -1,2 +1,6 @@
+# don't use this on CICD
+-r requirements-test.txt
+-r requirements-lint.txt
+-r requirements-doc.txt
 pdbpp
 python-language-server[all]
