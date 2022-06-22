@@ -388,3 +388,13 @@ def test_max_drawdown_pd_0_2d_nan():
     obtained = stats.max_drawdown(prices=data, relative=True)
     expected = pd.Series([0], dtype=float)
     pd.testing.assert_series_equal(obtained, expected)
+
+
+def test_sharpe_ratio():
+    ra = np.array([0, 2])
+    rb = np.array([0, 0])
+
+    obtained = stats.sharpe_ratio(ra, rb, factor=1)
+    expected = 1
+
+    assert obtained == expected, f"obtained {obtained} but expected {expected}"

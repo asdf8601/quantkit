@@ -11,13 +11,11 @@ WHERE:
     x_t : time series
     y : float
 """
-from quantkit.utils import (
-    first_valid_index,
-    last_valid_index,
-)
 from quantkit import expanding
-
+from quantkit.utils import first_valid_index, last_valid_index
 from quantkit.decorators import reduce_array_wrap
+from quantkit.conventions import ArrayLike, BYEAR
+
 import numpy as np
 
 
@@ -251,3 +249,43 @@ def max_drawdown(prices, relative=True):
     out = np.nanmin(dd, axis=0)
     out = reduce_array_wrap(prices, out)
     return out
+
+
+def sharpe_ratio(
+    returns: ArrayLike, risk_free: float, factor: float = np.sqrt(BYEAR)
+):
+    """Calculate shape ratio.
+
+    It measures the performance of an investment such as a security or
+    portfolio compared to a risk-free asset, after adjusting for its risk.
+
+    It is defined as the difference beteween the returns of the investement and
+    the risk-free return, divided by the standard deviation of the investment
+    returns.
+
+    It represents the additional amount of return that an investor recieves per
+    unit of increase in risk[1]_.
+
+    Parameters
+    ----------
+    returns : array-like
+        Asset return series.
+    risk_free : number or array-like
+        Risk free return.
+    factor : float
+        Annualization factor which multiplies the raw sharpe ratio.
+
+    Returns
+    -------
+    out : 1d-reduced-array
+
+    References
+    ----------
+    .. [1]: https://en.wikipedia.org/wiki/Sharpe_ratio
+
+    """
+    ret_excess = returns - risk_free
+    e_ret_excess = np.nanmean(ret_excess, axis=-1)
+    sigma = np.nanstd(ret_excess)
+
+    return (e_ret_excess / sigma) * factor
