@@ -14,9 +14,9 @@ WHERE:
 from quantkit.utils import (
     first_valid_index,
     last_valid_index,
-    reduce_array_wrap,
 )
 
+from quantkit.decorators import reduce_array_wrap
 import numpy as np
 
 
