@@ -109,7 +109,7 @@ def array_output_wrapper(pos):
         @wraps(func)
         def deco(*args, **kwargs):
             argument = args[pos]
-            out = func(argument, *args, **kwargs)
+            out = func(*args, **kwargs)
             return argument.__array_wrap__(out)
 
         return deco
