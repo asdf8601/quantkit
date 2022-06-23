@@ -398,3 +398,11 @@ def test_sharpe_ratio():
     expected = 1
 
     assert obtained == expected, f"obtained {obtained} but expected {expected}"
+
+
+def test_sortino_ratio():
+    rets = np.array([0.17, 0.15, 0.23, -0.05, 0.12, 0.9, 0.13, -0.4])
+    bench = 0.0
+    obtained = stats.sortino_ratio(rets, bench)
+    expected = 4.417
+    assert obtained == expected

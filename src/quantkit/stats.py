@@ -289,3 +289,13 @@ def sharpe_ratio(
     sigma = np.nanstd(ret_excess)
 
     return (e_ret_excess / sigma) * factor
+
+
+def sortino_ratio(returns: ArrayLike, risk_free: float, factor: float = np.sqrt(BYEAR)):
+    avg_ann_ret = np.mean(returns - risk_free)
+    downside_dev = returns - avg_ann_ret
+    downside_dev_squared = downside_dev ** 2
+    avg_dev = np.mean(downside_dev_squared)
+    return avg_ann_ret / np.sqrt(avg_dev)
+
+
