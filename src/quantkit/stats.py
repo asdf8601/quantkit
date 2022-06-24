@@ -256,7 +256,6 @@ def max_drawdown(prices: ArrayLike, relative: bool = True) -> ReducedOut:
     return out
 
 
-
 @reduced_array_out(0, "returns")
 def sharpe_ratio(
     returns: ArrayLike, risk_free: float, factor: float = np.sqrt(BYEAR)

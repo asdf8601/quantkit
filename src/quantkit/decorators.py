@@ -28,7 +28,6 @@ intput to {pandas, numpy} -> output to {pandas, numpy}:
 """
 import pandas as pd
 from quantkit.utils import iloc
-import inspect
 from functools import wraps
 
 
