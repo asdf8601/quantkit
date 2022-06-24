@@ -28,7 +28,7 @@ intput to {pandas, numpy} -> output to {pandas, numpy}:
 """
 import pandas as pd
 from quantkit.utils import iloc
-
+import inspect
 from functools import wraps
 
 
@@ -88,7 +88,7 @@ def numpy2pandas_args_wrapper(*pos):
 # dec(foo(x: pd.DataFrame)) -> pd.DataFrame NO!!!
 # dec(foo(x: pd.DataFrame)) -> np.array  SI!!!
 # BUG: more than one output will fail
-def array_output_wrapper(pos):
+def array_output_wrapper(pos, name):
     """Preserves output according to the input of the decorated functions.
 
     Decorator which converts the decorated function's output in the same object
@@ -108,9 +108,44 @@ def array_output_wrapper(pos):
     def maker(func):
         @wraps(func)
         def deco(*args, **kwargs):
-            argument = args[pos]
+            try:
+                argument = args[pos]
+            except IndexError:
+                argument = kwargs[name]
             out = func(*args, **kwargs)
             return argument.__array_wrap__(out)
+
+        return deco
+
+    return maker
+
+
+def reduced_array_out(pos, name):
+    """Preserves output according to the input of the decorated functions.
+
+    Decorator which converts the decorated function's output in the same object
+    as one of the input parameters. This allow us preserve the same object type
+    in the output.
+
+    Parameters
+    ----------
+    pos : int
+        Parameter position of the decorated function to preserve object type
+        from.
+
+    Returns
+    -------
+    decorated_func : function
+    """
+    def maker(func):
+        @wraps(func)
+        def deco(*args, **kwargs):
+            try:
+                argument = args[pos]
+            except IndexError:
+                argument = kwargs[name]
+            out = func(*args, **kwargs)
+            return reduce_array_wrap(argument, out)
 
         return deco
 

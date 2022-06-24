@@ -11,15 +11,19 @@ WHERE:
     x_t : time series
     y : float
 """
+from typing import Optional
 from quantkit import expanding
 from quantkit.utils import first_valid_index, last_valid_index
-from quantkit.decorators import reduce_array_wrap
-from quantkit.conventions import ArrayLike, BYEAR
+from quantkit.decorators import reduced_array_out
+from quantkit.conventions import ArrayLike, BYEAR, ReducedOut
 
 import numpy as np
 
 
-def total_returns(prices, factor=None, relative=True):
+@reduced_array_out(0, "prices")
+def total_returns(
+    prices: ArrayLike, factor: Optional[float] = None, relative: bool = True
+):
     """Calculate arithmetic total return.
 
     Given a prices series this function returns the [total return][1] (a.k.a
@@ -90,7 +94,10 @@ def total_returns(prices, factor=None, relative=True):
     return tot_ret
 
 
-def volatility(returns, factor=None, ddof=1):
+@reduced_array_out(0, "returns")
+def volatility(
+    returns: ArrayLike, factor: Optional[float] = None, ddof: int = 1
+) -> ReducedOut:
     r"""Calculate the volatility of the arithmetic returns.
 
     Calculates the volatility :math:`\sigma` over a returns series :math:`r_t`
@@ -151,12 +158,11 @@ def volatility(returns, factor=None, ddof=1):
     arr = returns.__array__()
 
     vol = np.nanstd(arr, ddof=ddof, axis=0) * factor
-    out = reduce_array_wrap(returns, vol)
-
-    return out
+    return vol
 
 
-def drawdown(prices, relative=True):
+@reduced_array_out(0, "prices")
+def drawdown(prices: ArrayLike, relative: bool = True) -> ReducedOut:
     r"""Compute the drawdown statistic.
 
     The drawdown of a price process :math:`S` at time :math:`t` is defined as
@@ -201,11 +207,11 @@ def drawdown(prices, relative=True):
     else:
         out = last_element - np.nanmax(prices)
 
-    out = reduce_array_wrap(prices, out)
     return out
 
 
-def max_drawdown(prices, relative=True):
+@reduced_array_out(0, "prices")
+def max_drawdown(prices: ArrayLike, relative: bool = True) -> ReducedOut:
     r"""Calculate the Maximum Drawdown.
 
     Max drawdown is the maximum potential loss of the trading system. Drawdown
@@ -247,13 +253,14 @@ def max_drawdown(prices, relative=True):
     """
     dd = expanding.drawdown(prices, relative=relative)
     out = np.nanmin(dd, axis=0)
-    out = reduce_array_wrap(prices, out)
     return out
 
 
+
+@reduced_array_out(0, "returns")
 def sharpe_ratio(
     returns: ArrayLike, risk_free: float, factor: float = np.sqrt(BYEAR)
-):
+) -> ReducedOut:
     """Calculate shape ratio.
 
     It measures the performance of an investment such as a security or
@@ -277,7 +284,12 @@ def sharpe_ratio(
 
     Returns
     -------
-    out : 1d-reduced-array
+    out : array-like or float
+
+    Examples
+    --------
+    >>> sharpe_ratio(np.array([0, 2]), factor=1)
+    1
 
     References
     ----------
@@ -285,17 +297,61 @@ def sharpe_ratio(
 
     """
     ret_excess = returns - risk_free
-    e_ret_excess = np.nanmean(ret_excess, axis=-1)
-    sigma = np.nanstd(ret_excess)
-
+    e_ret_excess = np.nanmean(ret_excess, axis=0)
+    sigma = np.nanstd(ret_excess, axis=0)
     return (e_ret_excess / sigma) * factor
 
 
-def sortino_ratio(returns: ArrayLike, risk_free: float, factor: float = np.sqrt(BYEAR)):
-    avg_ann_ret = np.mean(returns - risk_free)
-    downside_dev = returns - avg_ann_ret
-    downside_dev_squared = downside_dev ** 2
-    avg_dev = np.mean(downside_dev_squared)
-    return avg_ann_ret / np.sqrt(avg_dev)
+@reduced_array_out(0, "returns")
+def sortino_ratio(
+    returns: ArrayLike, target_ret: float = 0, factor: float = np.sqrt(BYEAR)
+) -> ReducedOut:
+    """Calculate sortino ratio.
 
+    The Sortino ratio measures the risk-adjusted return of an investment asset,
+    portfolio, or strategy. It is a modification of the Sharpe ratio but
+    penalizes only those returns falling below a user-specified target or
+    required rate of return, while the Sharpe ratio penalizes both upside and
+    downside volatility equally.
 
+    Extracted from wikipedia[1]_.
+
+    Parameters
+    ----------
+    returns : array-like
+        Returns series.
+    target_ret : float
+        Originally known as the minimum acceptable return (MAR) or in earlier's
+        papers known as desired target return [2]_.
+    factor : float
+        Annualization factor used to convert returns to a different frequency.
+        For example, if returns are daily you should pass 261 ** 0.5 in other
+        to annualize them.
+
+    Returns
+    -------
+    out : array-like or float
+
+    Examples
+    --------
+    >>> sortino_ratio(np.array([-0.10, -0.10, -0.10, -0.10]), factor=1)
+    -1
+
+    References
+    ----------
+    .. [1] https://en.wikipedia.org/wiki/Sortino_ratio
+    .. [2] http://www.redrockcapital.com/
+           Sortino__A__Sharper__Ratio_Red_Rock_Capital.pdf
+    """
+    # TODO: we need to use factor? should I annualized something?
+    diff = returns - target_ret
+
+    # numerator
+    avg_ann_ret = np.nanmean(diff, axis=0)
+
+    # denominator
+    downside_dev = np.where(diff < 0, diff, 0)  # put a zero where diff > 0
+    downside_dev_squared = downside_dev**2
+    avg_dev = np.mean(downside_dev_squared, axis=0)
+
+    return avg_ann_ret / np.sqrt(avg_dev) * factor

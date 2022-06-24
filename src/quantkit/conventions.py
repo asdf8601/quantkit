@@ -5,6 +5,7 @@ from typing import Union
 
 
 ArrayLike = Union[np.array, pd.Series, pd.DataFrame]
+ReducedOut = Union[np.array, pd.Series, pd.DataFrame, float]
 
 
 BYEAR = 261

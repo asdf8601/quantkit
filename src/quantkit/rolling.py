@@ -5,7 +5,7 @@ import numpy as np
 
 
 @numpy2pandas_args_wrapper(0)
-@array_output_wrapper(0)
+@array_output_wrapper(0, "returns")
 def volatility(returns, window=BYEAR, min_periods=2, ddof=1, factor=None):
     """Volatility calculation.
 
