@@ -1,7 +1,116 @@
 [build-system]
-# These are the assumed default build requirements from pip:
-# https://pip.pypa.io/en/stable/reference/pip/#pep-517-and-518-support
-# About versioneer pip<19:
-# https://github.com/warner/python-versioneer/issues/192#issuecomment-623144826
-requires = ["setuptools>=40.8.0", "wheel", "versioneer-518"]
+requires = ["setuptools", "setuptools-scm", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "quantkit"
+description = "Quantitative functions for finance analysis."
+readme = "README.md"
+requires-python = ">=3.5, <4"
+dynamic = ["version"]
+dependencies = [
+    "numpy",
+    "pandas"
+]
+
+[tool.setuptools_scm]
+version_file = "src/quantkit/_version.py"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[project.optional-dependencies]
+dev = [
+    # lint
+    "ruff",
+    "mypy",
+    # test
+	"pytest",
+	"pytest-xdist",
+	"pytest-cov",
+	"sympy",
+    # docs
+	"Sphinx",
+	"numpydoc",
+	"sphinx-rtd-theme",
+	"sphinx-autoapi",
+    # utils
+    "pdbpp",
+    "ipython",
+]
+
+
+
+[tool.ruff]
+indent-width = 4
+line-length = 80
+target-version = "py311"
+src = ["src"]
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".ipynb_checkpoints",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pyenv",
+    ".pytest_cache",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    ".vscode",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "site-packages",
+    "venv",
+]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]
+ignore = ["E501"]
+fixable = ["ALL"]
+unfixable = []
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+extend-select = ["I"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = false
+docstring-code-line-length = "dynamic"
+
+[tool.isort]
+multi_line_output = 3
+
+[tool.black]
+line-length = 80
+
+[tool.mypy]
+files = ["src", "tests"]
+python_version = "3.11"
+warn_unused_configs = true
+strict = true
+show_error_codes = true
+enable_error_code = ["ignore-without-code", "redundant-expr", "truthy-bool"]
+warn_unreachable = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+ignore_missing_imports = true
+
+[tool.pytest]
+python_files = "tests/*.py"

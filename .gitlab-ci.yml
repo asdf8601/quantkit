@@ -1,4 +1,4 @@
-image: python:3.10
+image: python:3.11
 
 # Change pip's cache directory to be inside the project directory since we can
 # only cache local items.
@@ -17,6 +17,7 @@ before_script:
   - pip install virtualenv
   - virtualenv venv
   - source venv/bin/activate
+  - pip install -e .[dev]
 
 run:
   stage: build
@@ -34,19 +35,16 @@ run:
 test:
   stage: test
   script:
-    - pip install -r requirements-test.txt
     - pytest tests -v --cov
     - coverage xml
   needs: ["run"]
 
 lint:
   script:
-    - pip install -r requirements-lint.txt
-    - flake8 src
+    - ruff src
 
 pages:
   script:
-    - pip install -r requirements-doc.txt
     - cd docs ; make html
     - mv build/html/ ../public/
   artifacts:
