@@ -39,4 +39,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - None
 
-[Unreleased]: https://github.com/mmngreco/quantkit/-/compare/v0.0.0...HEAD
+[Unreleased]: https://github.com/asdf8601/quantkit/compare/v0.0.0...HEAD

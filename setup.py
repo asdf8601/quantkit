@@ -15,7 +15,7 @@ setup(
     description="Quantitative functions for finance analysis.",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/mmngreco/quantkit",
+    url="https://github.com/asdf8601/quantkit",
     author="mmngreco",
     classifiers=[
         "Development Status :: 3 - Alpha",
