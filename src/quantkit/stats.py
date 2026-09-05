@@ -11,14 +11,15 @@ WHERE:
     x_t : time series
     y : float
 """
+
 import warnings
 
-from quantkit import expanding
-from quantkit.utils import first_valid_index, last_valid_index
-from quantkit.decorators import reduce_array_wrap
-from quantkit.conventions import ArrayLike, BYEAR
-
 import numpy as np
+
+from quantkit import expanding
+from quantkit.conventions import BYEAR, ArrayLike
+from quantkit.decorators import reduce_array_wrap
+from quantkit.utils import first_valid_index, last_valid_index
 
 
 def total_returns(prices, factor=None, relative=True):
@@ -254,7 +255,9 @@ def max_drawdown(prices, relative=True):
 
 
 def sharpe_ratio(
-    returns: ArrayLike, risk_free: float, factor: float = np.sqrt(BYEAR)
+    returns: ArrayLike,
+    risk_free: float | ArrayLike,
+    factor: float = np.sqrt(BYEAR),
 ):
     """Calculate shape ratio.
 
