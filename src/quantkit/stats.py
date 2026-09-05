@@ -289,3 +289,280 @@ def sharpe_ratio(
     sigma = np.nanstd(ret_excess)
 
     return (e_ret_excess / sigma) * factor
+
+
+def _nanmean(arr):
+    """Column-wise mean ignoring NaN.
+
+    Same as ``np.nanmean(arr, axis=0)`` but returns NaN silently, instead of
+    warning, when a column has no valid observation.
+    """
+    count = np.sum(~np.isnan(arr), axis=0)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        return np.nansum(arr, axis=0) / count
+
+
+def downside_deviation(returns, mar=0.0, factor=None):
+    r"""Calculate the downside deviation of the returns.
+
+    Root mean square of the shortfalls below the minimum acceptable return
+    :math:`\text{MAR}`:
+
+    .. math::
+
+        \sigma_d = \sqrt{\frac{1}{N}
+                   \sum_{t=1}^{N} \min(r_t - \text{MAR}, 0)^2}
+
+    The mean is taken over all :math:`N` valid observations, not only over
+    those below the MAR. This is the Sortino / Morningstar convention [1]_
+    [2]_ and makes the statistic the denominator of :func:`sortino_ratio`.
+
+    Parameters
+    ----------
+    returns : array-like
+        Returns series. Reductions are column-wise.
+    mar : float, optional
+        Minimum acceptable return, in the same units as ``returns``.
+    factor : float, optional
+        Multiplies the result. To annualize a deviation of returns of a
+        shorter period pass the square root of the number of periods in a
+        year, e.g. ``np.sqrt(BYEAR)`` for daily returns.
+
+    Returns
+    -------
+    out : float or array-like
+        Float for 1d input, one value per column for 2d input. NaN when
+        there is no valid observation.
+
+    Examples
+    --------
+    >>> downside_deviation(np.array([0.1, -0.1, 0.3, -0.2]))
+    0.1118033988749895
+
+    References
+    ----------
+    .. [1] Sortino, F. A., & Price, L. N. (1994). Performance measurement in
+           a downside risk framework. The Journal of Investing, 3(3), 59-64.
+    .. [2] https://en.wikipedia.org/wiki/Downside_risk
+    """
+    if factor is None:
+        factor = 1
+
+    diff = returns.__array__() - mar
+    dev = np.sqrt(_nanmean(np.minimum(diff, 0) ** 2)) * factor
+
+    return reduce_array_wrap(returns, dev)
+
+
+def upside_deviation(returns, mar=0.0, factor=None):
+    r"""Calculate the upside deviation of the returns.
+
+    Root mean square of the excess returns above the minimum acceptable
+    return :math:`\text{MAR}`, the mirror image of :func:`downside_deviation`:
+
+    .. math::
+
+        \sigma_u = \sqrt{\frac{1}{N}
+                   \sum_{t=1}^{N} \max(r_t - \text{MAR}, 0)^2}
+
+    The mean is taken over all :math:`N` valid observations, not only over
+    those above the MAR.
+
+    Parameters
+    ----------
+    returns : array-like
+        Returns series. Reductions are column-wise.
+    mar : float, optional
+        Minimum acceptable return, in the same units as ``returns``.
+    factor : float, optional
+        Multiplies the result. To annualize a deviation of returns of a
+        shorter period pass the square root of the number of periods in a
+        year, e.g. ``np.sqrt(BYEAR)`` for daily returns.
+
+    Returns
+    -------
+    out : float or array-like
+        Float for 1d input, one value per column for 2d input. NaN when
+        there is no valid observation.
+
+    Examples
+    --------
+    >>> upside_deviation(np.array([0.1, -0.1, 0.3, -0.2]))
+    0.15811388300841897
+
+    References
+    ----------
+    .. [1] https://en.wikipedia.org/wiki/Downside_risk
+    """
+    if factor is None:
+        factor = 1
+
+    diff = returns.__array__() - mar
+    dev = np.sqrt(_nanmean(np.maximum(diff, 0) ** 2)) * factor
+
+    return reduce_array_wrap(returns, dev)
+
+
+def kappa(returns, mar=0.0, order=2, factor=None):
+    r"""Calculate the Kappa ratio of Kaplan and Knowles.
+
+    Generalized downside risk-adjusted performance measure: the mean excess
+    return over the minimum acceptable return :math:`\text{MAR}` divided by
+    the ``order``-th root of the lower partial moment of that order [1]_:
+
+    .. math::
+
+        \kappa_n = \frac{\bar{r} - \text{MAR}}{\sqrt[n]{\text{LPM}_n}},
+        \quad
+        \text{LPM}_n = \frac{1}{N} \sum_{t=1}^{N} \max(\text{MAR} - r_t, 0)^n
+
+    ``order=1`` is the Omega ratio minus one (see :func:`omega_ratio`) and
+    ``order=2`` is the Sortino ratio (see :func:`sortino_ratio`).
+
+    Parameters
+    ----------
+    returns : array-like
+        Returns series. Reductions are column-wise.
+    mar : float, optional
+        Minimum acceptable return, in the same units as ``returns``.
+    order : float, optional
+        Order :math:`n` of the lower partial moment. Must be positive.
+    factor : float, optional
+        Multiplies the result. Annualizing the ratio requires the caller to
+        pass the matching factor, e.g. ``np.sqrt(BYEAR)`` for the Sortino
+        ratio (``order=2``) of daily returns.
+
+    Returns
+    -------
+    out : float or array-like
+        Float for 1d input, one value per column for 2d input. NaN when the
+        lower partial moment is zero (no return below the MAR) or when there
+        is no valid observation.
+
+    Raises
+    ------
+    ValueError
+        If ``order`` is not positive.
+
+    Examples
+    --------
+    >>> kappa(np.array([0.1, -0.1, 0.3, -0.2]), order=1)
+    0.3333333333333332
+
+    References
+    ----------
+    .. [1] Kaplan, P. D., & Knowles, J. A. (2004). Kappa: a generalized
+           downside risk-adjusted performance measure. Journal of Performance
+           Measurement, 8(3), 42-54.
+    """
+    if order <= 0:
+        raise ValueError(f"order must be positive, got {order}")
+    if factor is None:
+        factor = 1
+
+    diff = returns.__array__() - mar
+    lpm = _nanmean(np.maximum(-diff, 0) ** order)
+    den = lpm ** (1 / order)
+    den = np.where(den == 0, np.nan, den)  # zero denominator -> NaN, not inf
+    out = _nanmean(diff) / den * factor
+
+    return reduce_array_wrap(returns, out)
+
+
+def omega_ratio(returns, mar=0.0):
+    r"""Calculate the Omega ratio of Shadwick and Keating.
+
+    Probability-weighted gains over probability-weighted losses relative to
+    the minimum acceptable return :math:`\text{MAR}` [1]_. For a sample of
+    returns it is the sum of the excess returns above the MAR over the sum
+    of the shortfalls below it:
+
+    .. math::
+
+        \Omega = \frac{\sum_{t=1}^{N} \max(r_t - \text{MAR}, 0)}
+                      {\sum_{t=1}^{N} \max(\text{MAR} - r_t, 0)}
+
+    It equals ``1 + kappa(returns, mar, order=1)``.
+
+    Parameters
+    ----------
+    returns : array-like
+        Returns series. Reductions are column-wise.
+    mar : float, optional
+        Minimum acceptable return, in the same units as ``returns``.
+
+    Returns
+    -------
+    out : float or array-like
+        Float for 1d input, one value per column for 2d input. NaN when no
+        return is below the MAR (zero denominator) or when there is no valid
+        observation.
+
+    Examples
+    --------
+    >>> omega_ratio(np.array([0.1, -0.1, 0.3, -0.2]))
+    1.3333333333333333
+
+    References
+    ----------
+    .. [1] Keating, C., & Shadwick, W. F. (2002). A universal performance
+           measure. Journal of Performance Measurement, 6(3), 59-84.
+    """
+    diff = returns.__array__() - mar
+    gains = np.nansum(np.maximum(diff, 0), axis=0)
+    losses = np.nansum(np.maximum(-diff, 0), axis=0)
+    losses = np.where(losses == 0, np.nan, losses)  # 0 -> NaN, not inf
+    out = gains / losses
+
+    return reduce_array_wrap(returns, out)
+
+
+def sortino_ratio(returns, mar=0.0, factor=None):
+    r"""Calculate the Sortino ratio.
+
+    Risk-adjusted return that, unlike the Sharpe ratio, penalizes only the
+    returns falling below the minimum acceptable return :math:`\text{MAR}`
+    [1]_ [2]_:
+
+    .. math::
+
+        S = \frac{\bar{r} - \text{MAR}}{\sigma_d}
+
+    where :math:`\sigma_d` is the :func:`downside_deviation`. It is
+    :func:`kappa` with ``order=2``.
+
+    Parameters
+    ----------
+    returns : array-like
+        Returns series. Reductions are column-wise.
+    mar : float, optional
+        Minimum acceptable return (a.k.a. target or required return), in the
+        same units as ``returns``.
+    factor : float, optional
+        Multiplies the result. Annualizing the ratio requires the caller to
+        pass the square root of the number of periods in a year, e.g.
+        ``np.sqrt(BYEAR)`` for daily returns.
+
+    Returns
+    -------
+    out : float or array-like
+        Float for 1d input, one value per column for 2d input. NaN when no
+        return is below the MAR (zero downside deviation) or when there is
+        no valid observation.
+
+    Examples
+    --------
+    >>> rets = np.array([0.17, 0.15, 0.23, -0.05, 0.12, 0.09, 0.13, -0.04])
+    >>> sortino_ratio(rets)
+    4.417261042993862
+
+    >>> sortino_ratio(np.array([-0.1, -0.1, -0.1, -0.1]))
+    -1.0
+
+    References
+    ----------
+    .. [1] https://en.wikipedia.org/wiki/Sortino_ratio
+    .. [2] http://www.redrockcapital.com/
+           Sortino__A__Sharper__Ratio_Red_Rock_Capital.pdf
+    """
+    return kappa(returns, mar=mar, order=2, factor=factor)
