@@ -36,8 +36,9 @@ def test_drawup_relative_divides_the_rise_by_the_running_minimum():
 
 def test_drawup_is_relative_by_default():
     prices = np.array([4, 2, 3, 6])
+    # cummin: 4, 2, 2, 2 -> relative drawup 0, 0, 0.5, 2.0
+    expected = np.array([0.0, 0.0, 0.5, 2.0])
 
-    expected = expanding.drawup(prices, relative=True)
     obtained = expanding.drawup(prices)
 
     np.testing.assert_almost_equal(obtained, expected)
@@ -211,8 +212,9 @@ def test_max_drawup_relative_is_the_largest_relative_rise():
 
 def test_max_drawup_is_relative_by_default():
     prices = np.array([4, 2, 3, 6])
+    # relative drawup 0, 0, 0.5, 2.0 -> max 2.0
+    expected = 2.0
 
-    expected = stats.max_drawup(prices, relative=True)
     obtained = stats.max_drawup(prices)
 
     np.testing.assert_almost_equal(obtained, expected)
