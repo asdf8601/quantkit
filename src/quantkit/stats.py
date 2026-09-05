@@ -12,10 +12,13 @@ WHERE:
     y : float
 """
 
+import warnings
+
 import numpy as np
 
 from quantkit import expanding
 from quantkit.conventions import BYEAR, ArrayLike
+from quantkit.core import cum_returns
 from quantkit.decorators import reduce_array_wrap
 from quantkit.utils import align, first_valid_index, last_valid_index
 
@@ -292,6 +295,1195 @@ def sharpe_ratio(
     sigma = np.nanstd(ret_excess)
 
     return (e_ret_excess / sigma) * factor
+
+
+def value_at_risk(returns, confidence=0.95):
+    r"""Calculate the historical value at risk (VaR).
+
+    The historical VaR at confidence level :math:`c` is the empirical
+    :math:`(1 - c)` quantile of the returns, i.e. the return that is only
+    undercut with probability :math:`1 - c` in the sample:
+
+    .. math::
+
+        \text{VaR}_{c} = Q_{1 - c}(r_t)
+
+    The quantile is computed with numpy's default linear interpolation
+    between order statistics, ignoring NaN.
+
+    The sign of the return is kept, so a loss is a NEGATIVE number, the same
+    convention as :func:`drawdown`. Morningstar (and most risk reports)
+    quote VaR as a positive loss; negate the output if that convention is
+    needed.
+
+    Parameters
+    ----------
+    returns : array-like
+        Asset return series.
+    confidence : float, optional
+        Confidence level, strictly between 0 and 1. The default 0.95 gives
+        the 5th percentile of the returns.
+
+    Returns
+    -------
+    out : float or array-like
+        Value at risk of each column. NaN for a column without valid
+        observations.
+
+    Raises
+    ------
+    ValueError
+        If ``confidence`` is not in the open interval (0, 1).
+
+    References
+    ----------
+    .. [1]: https://en.wikipedia.org/wiki/Value_at_risk
+    .. [2]: Jorion, P. (2006). Value at Risk: The New Benchmark for Managing
+            Financial Risk. McGraw-Hill.
+
+    Examples
+    --------
+    >>> returns = np.array([-0.05, -0.02, 0.0, 0.01, 0.03])
+    >>> value_at_risk(returns, confidence=0.75)
+    -0.02
+
+    >>> returns = pd.DataFrame({"a": returns, "b": returns + 0.1})
+    >>> value_at_risk(returns, confidence=0.75)
+    a   -0.02
+    b    0.08
+    dtype: float64
+    """
+    if not 0 < confidence < 1:
+        raise ValueError(
+            f"confidence must be in the open interval (0, 1): {confidence}"
+        )
+
+    arr = returns.__array__()
+    percentile = (1 - confidence) * 100
+
+    with warnings.catch_warnings():
+        # nanpercentile warns on empty and all-NaN columns; NaN is the
+        # documented result there, so the warning is noise
+        warnings.simplefilter("ignore", RuntimeWarning)
+        var = np.nanpercentile(arr, percentile, axis=0)
+
+    out = reduce_array_wrap(returns, var)
+
+    return out
+
+
+def max_drawup(prices, relative=True):
+    r"""Calculate the Maximum Drawup.
+
+    The drawup is the rise of the prices from their running minimum, the
+    mirror image of the drawdown:
+
+    .. math::
+
+        U_{t} = S_{t} - \min_{u \in [0, t]}(S_{u})
+
+    "Max drawup" is the largest drawup value observed in the given time
+    series for the whole period.
+
+    .. math::
+
+        MU_{T} = \max_{t \in [0, T]} ( S_{t} - \min_{u \in [0, t]}(S_{u}) )
+
+    Parameters
+    ----------
+    prices : array-like
+        Series on which the drawup is to be calculated.
+    relative : bool, optional
+        Passing True makes the drawup relative (in parts per unit) to the
+        running minimum.
+
+    Returns
+    -------
+    out : float or array-like
+        Maximum Drawup value. NaN when there is no valid observation.
+
+    References
+    ----------
+    .. [1] Jan Vecer - Maximum Drawdown and Directional Trading, Risk 19(12),
+       2006. Maximum drawdown and maximum drawup are studied as a pair.
+       http://www.stat.columbia.edu/~vecer/maxdrawdown3.pdf
+
+    Examples
+    --------
+    >>> prices = np.array([4, 2, 3, 6])
+    >>> max_drawup(prices, relative=False)
+    4.0
+
+    >>> max_drawup(prices)
+    2.0
+    """
+    du = expanding.drawup(prices, relative=relative)
+    arr = du.__array__()
+
+    if arr.shape[0] == 0:
+        # no observations: nanmax would raise, return NaN instead
+        out = np.full(arr.shape[1:], np.nan)
+    else:
+        out = np.nanmax(arr, axis=0)
+
+    out = reduce_array_wrap(prices, out)
+    return out
+
+
+def annualized_return(returns, periods_per_year=BYEAR):
+    r"""Calculate the geometric annualized return.
+
+    Compounds the returns of the whole period and rescales the result to a
+    one year basis, so that series of different lengths are comparable:
+
+    .. math::
+
+        R_{\text{annual}} = \left( \prod_{t=1}^{n} (1 + r_t) \right)
+            ^{\frac{P}{n}} - 1
+
+    where :math:`P` is ``periods_per_year`` and :math:`n` is the number of
+    non-NaN returns of each column. NaN values are dropped from both the
+    product and the count.
+
+    Parameters
+    ----------
+    returns : array-like
+        Arithmetic returns series, 1-d or 2-d (columns are reduced
+        independently).
+    periods_per_year : float, optional
+        Number of returns that make up a year, ``BYEAR`` (business days) by
+        default. Use 12 for monthly and 52 for weekly returns.
+
+    Returns
+    -------
+    out : float or 1d-reduced-array
+        Annualized return of each column. NaN when a column has no valid
+        return.
+
+    References
+    ----------
+    .. [1]: https://en.wikipedia.org/wiki/Rate_of_return#Annualization
+
+    Examples
+    --------
+    Doubling twice over two years annualizes to +100%.
+
+    >>> annualized_return(np.array([1.0, 1.0]), periods_per_year=1)
+    1.0
+
+    Doubling in half a year annualizes to +300%.
+
+    >>> annualized_return(np.array([1.0]), periods_per_year=2)
+    3.0
+    """
+    arr = returns.__array__()
+    n = np.sum(~np.isnan(arr), axis=0)
+    growth = np.nanprod(1 + arr, axis=0)
+
+    with np.errstate(divide="ignore", invalid="ignore"):
+        # periods_per_year / n is inf where n == 0; masked right after
+        out = np.where(n == 0, np.nan, growth ** (periods_per_year / n) - 1)
+
+    if out.ndim == 0:
+        out = out[()]
+
+    return reduce_array_wrap(returns, out)
+
+
+def calmar_ratio(returns, periods_per_year=BYEAR):
+    r"""Calculate the Calmar ratio.
+
+    Return earned per unit of maximum drawdown suffered: the annualized
+    return divided by the absolute maximum drawdown of the price path
+    implied by ``returns``, starting from a capital of 1 [1]_.
+
+    .. math::
+
+        \text{Calmar} = \frac{R_{\text{annual}}}{|MD|}
+
+    The price path is ``cum_returns(returns, first_price=1)`` preceded by
+    the starting capital itself, so a loss on the very first return counts
+    as a drawdown. Morningstar computes the ratio over the trailing 36
+    months; here the caller chooses the window by slicing ``returns``
+    before calling.
+
+    Parameters
+    ----------
+    returns : array-like
+        Arithmetic returns series, 1-d or 2-d (columns are reduced
+        independently).
+    periods_per_year : float, optional
+        Number of returns that make up a year, passed to
+        :func:`annualized_return`. ``BYEAR`` (business days) by default.
+
+    Returns
+    -------
+    out : float or 1d-reduced-array
+        Calmar ratio of each column. NaN when there is no drawdown to
+        divide by or no valid return.
+
+    References
+    ----------
+    .. [1]: https://en.wikipedia.org/wiki/Calmar_ratio
+    .. [2]: Young, T. W. (1991). Calmar Ratio: A Smoother Tool. Futures,
+            20(1), 40.
+
+    Examples
+    --------
+    Halve the capital, then quadruple it: the year ends +100% after a 50%
+    drawdown.
+
+    >>> calmar_ratio(np.array([-0.5, 3.0]), periods_per_year=2)
+    2.0
+
+    Without a drawdown the ratio is undefined.
+
+    >>> calmar_ratio(np.array([0.1, 0.2]), periods_per_year=2)
+    nan
+    """
+    arr = returns.__array__()
+    ann_ret = annualized_return(arr, periods_per_year=periods_per_year)
+    ann_ret = np.asarray(ann_ret, dtype=float)
+
+    # start the price path at the initial capital so that a loss on the first
+    # return is a drawdown too
+    prices = cum_returns(arr, first_price=1)
+    start = np.ones((1,) + arr.shape[1:])
+    prices = np.concatenate([start, prices], axis=0)
+    mdd = max_drawdown(prices, relative=True)
+    mdd = np.abs(np.asarray(mdd, dtype=float))
+
+    with np.errstate(divide="ignore", invalid="ignore"):
+        out = np.where(mdd == 0, np.nan, ann_ret / mdd)
+
+    if out.ndim == 0:
+        out = out[()]
+
+    return reduce_array_wrap(returns, out)
+
+
+def _nan_divide(numerator, denominator):
+    """Divide returning NaN, never inf, where the denominator is zero."""
+    return numerator / np.where(denominator != 0, denominator, np.nan)
+
+
+def _masked_mean(arr, mask, method):
+    """Column-wise mean of ``arr`` over the periods selected by ``mask``.
+
+    Periods outside the mask, NaN included, do not contribute. A column with
+    no selected period gives NaN.
+    """
+    if method not in ("arith", "geo"):
+        raise ValueError(f"method must be 'arith' or 'geo', got {method!r}")
+
+    selected = np.where(mask, arr, 0)
+    if method == "geo":
+        # prod(1 + r) ** (1 / n) - 1 == expm1(mean(log1p(r))). log1p(-1) is
+        # -inf for a total loss and expm1 maps it back to -1.
+        with np.errstate(divide="ignore"):
+            selected = np.log1p(selected)
+
+    mean = _nan_divide(selected.sum(axis=0), mask.sum(axis=0))
+
+    if method == "geo":
+        mean = np.expm1(mean)
+
+    return mean
+
+
+def average_gain(returns, method="arith"):
+    r"""Calculate the average gain.
+
+    The mean of the returns over the periods with a gain, :math:`r_t > 0`.
+    Periods with a zero or negative return and NaN are left out.
+
+    .. math::
+
+        \text{arith} = \frac{1}{n_g} \sum_{r_t > 0} r_t
+
+        \text{geo} = \left( \prod_{r_t > 0} (1 + r_t) \right)^{1 / n_g} - 1
+
+    The geometric mean is Morningstar's definition of Average Gain [1]_.
+
+    Parameters
+    ----------
+    returns : array-like
+        Returns series, 1 or 2 dimensions. Reduces along axis 0.
+    method : {"arith", "geo"}, optional
+        Arithmetic (default) or geometric mean of the gains.
+
+    Returns
+    -------
+    out : float or array-like
+        Average gain per column. NaN when there is no gain.
+
+    Raises
+    ------
+    ValueError
+        If ``method`` is neither "arith" nor "geo".
+
+    References
+    ----------
+    .. [1] Morningstar, Custom Calculation Data Points, October 2016.
+    https://morningstardirect.morningstar.com/clientcomm/customcalculations.pdf
+
+    Examples
+    --------
+    >>> returns = np.array([0.10, -0.05, 0.20])
+    >>> average_gain(returns)
+    0.15
+
+    >>> average_gain(returns, method="geo")
+    0.1489125293076057
+    """
+    arr = returns.__array__()
+    out = _masked_mean(arr, arr > 0, method)
+    return reduce_array_wrap(returns, out)
+
+
+def average_loss(returns, method="arith"):
+    r"""Calculate the average loss.
+
+    The mean of the returns over the periods with a loss, :math:`r_t < 0`, so
+    the result is negative. Periods with a zero or positive return and NaN are
+    left out.
+
+    .. math::
+
+        \text{arith} = \frac{1}{n_l} \sum_{r_t < 0} r_t
+
+        \text{geo} = \left( \prod_{r_t < 0} (1 + r_t) \right)^{1 / n_l} - 1
+
+    The geometric mean is Morningstar's definition of Average Loss [1]_.
+
+    Parameters
+    ----------
+    returns : array-like
+        Returns series, 1 or 2 dimensions. Reduces along axis 0.
+    method : {"arith", "geo"}, optional
+        Arithmetic (default) or geometric mean of the losses.
+
+    Returns
+    -------
+    out : float or array-like
+        Average loss per column, negative. NaN when there is no loss.
+
+    Raises
+    ------
+    ValueError
+        If ``method`` is neither "arith" nor "geo".
+
+    References
+    ----------
+    .. [1] Morningstar, Custom Calculation Data Points, October 2016.
+    https://morningstardirect.morningstar.com/clientcomm/customcalculations.pdf
+
+    Examples
+    --------
+    >>> returns = np.array([-0.10, 0.05, -0.20])
+    >>> average_loss(returns)
+    -0.15
+
+    >>> average_loss(returns, method="geo")
+    -0.1514718625761430
+    """
+    arr = returns.__array__()
+    out = _masked_mean(arr, arr < 0, method)
+    return reduce_array_wrap(returns, out)
+
+
+def gain_loss_ratio(returns):
+    r"""Calculate Morningstar's Gain/Loss Ratio.
+
+    The ratio between the arithmetic average gain and the arithmetic average
+    loss, in absolute value, multiplied by the ratio between the number of
+    periods with a gain and the number of periods with a loss [1]_. Zero
+    returns and NaN are neither gains nor losses.
+
+    .. math::
+
+        GL = \left| \frac{\bar{r}_g}{\bar{r}_l} \right| \frac{n_g}{n_l}
+           = \frac{\sum_{r_t > 0} r_t}{\left| \sum_{r_t < 0} r_t \right|}
+
+    Both forms are the same number: the counts cancel out and the ratio is
+    the sum of the gains over the absolute sum of the losses.
+
+    Parameters
+    ----------
+    returns : array-like
+        Returns series, 1 or 2 dimensions. Reduces along axis 0.
+
+    Returns
+    -------
+    out : float or array-like
+        Gain/Loss Ratio per column. NaN when there is no loss, 0 when there
+        are losses but no gain.
+
+    References
+    ----------
+    .. [1] Morningstar, Custom Calculation Data Points, October 2016.
+    https://morningstardirect.morningstar.com/clientcomm/customcalculations.pdf
+
+    Examples
+    --------
+    >>> returns = np.array([0.1, 0.2, -0.1])
+    >>> gain_loss_ratio(returns)
+    3.0
+    """
+    arr = returns.__array__()
+    gains = np.where(arr > 0, arr, 0).sum(axis=0)
+    losses = -np.where(arr < 0, arr, 0).sum(axis=0)
+    out = _nan_divide(gains, losses)
+    return reduce_array_wrap(returns, out)
+
+
+def up_period_percent(returns):
+    r"""Calculate the fraction of periods with a return at or above zero.
+
+    Number of periods whose return is greater than or equal to 0 over the
+    number of valid periods [1]_. A zero return counts as an up period and
+    NaN is left out of both counts.
+
+    .. math::
+
+        UP = \frac{\#\{t : r_t \geq 0\}}{\#\{t : r_t \text{ is not NaN}\}}
+
+    Despite the name, the output is in parts per unit (0.75, not 75), like
+    the rest of the library with ``relative=True``.
+
+    Parameters
+    ----------
+    returns : array-like
+        Returns series, 1 or 2 dimensions. Reduces along axis 0.
+
+    Returns
+    -------
+    out : float or array-like
+        Fraction in [0, 1] per column. NaN when there is no valid period. It
+        adds up to 1 with :func:`down_period_percent`.
+
+    References
+    ----------
+    .. [1] Morningstar, Custom Calculation Data Points, October 2016.
+    https://morningstardirect.morningstar.com/clientcomm/customcalculations.pdf
+
+    Examples
+    --------
+    >>> returns = np.array([0.1, 0.0, -0.1, 0.2])
+    >>> up_period_percent(returns)
+    0.75
+    """
+    arr = returns.__array__()
+    out = _nan_divide((arr >= 0).sum(axis=0), (~np.isnan(arr)).sum(axis=0))
+    return reduce_array_wrap(returns, out)
+
+
+def down_period_percent(returns):
+    r"""Calculate the fraction of periods with a return below zero.
+
+    Number of periods whose return is less than 0 over the number of valid
+    periods [1]_. NaN is left out of both counts.
+
+    .. math::
+
+        DOWN = \frac{\#\{t : r_t < 0\}}{\#\{t : r_t \text{ is not NaN}\}}
+
+    Despite the name, the output is in parts per unit (0.25, not 25), like
+    the rest of the library with ``relative=True``.
+
+    Parameters
+    ----------
+    returns : array-like
+        Returns series, 1 or 2 dimensions. Reduces along axis 0.
+
+    Returns
+    -------
+    out : float or array-like
+        Fraction in [0, 1] per column. NaN when there is no valid period. It
+        adds up to 1 with :func:`up_period_percent`.
+
+    References
+    ----------
+    .. [1] Morningstar, Custom Calculation Data Points, October 2016.
+    https://morningstardirect.morningstar.com/clientcomm/customcalculations.pdf
+
+    Examples
+    --------
+    >>> returns = np.array([0.1, 0.0, -0.1, 0.2])
+    >>> down_period_percent(returns)
+    0.25
+    """
+    arr = returns.__array__()
+    out = _nan_divide((arr < 0).sum(axis=0), (~np.isnan(arr)).sum(axis=0))
+    return reduce_array_wrap(returns, out)
+
+
+def _nanmean(arr):
+    """Column-wise mean ignoring NaN.
+
+    Same as ``np.nanmean(arr, axis=0)`` but returns NaN silently, instead of
+    warning, when a column has no valid observation.
+    """
+    count = np.sum(~np.isnan(arr), axis=0)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        return np.nansum(arr, axis=0) / count
+
+
+def downside_deviation(returns, mar=0.0, factor=None):
+    r"""Calculate the downside deviation of the returns.
+
+    Root mean square of the shortfalls below the minimum acceptable return
+    :math:`\text{MAR}`:
+
+    .. math::
+
+        \sigma_d = \sqrt{\frac{1}{N}
+                   \sum_{t=1}^{N} \min(r_t - \text{MAR}, 0)^2}
+
+    The mean is taken over all :math:`N` valid observations, not only over
+    those below the MAR. This is the Sortino / Morningstar convention [1]_
+    [2]_ and makes the statistic the denominator of :func:`sortino_ratio`.
+
+    Parameters
+    ----------
+    returns : array-like
+        Returns series. Reductions are column-wise.
+    mar : float, optional
+        Minimum acceptable return, in the same units as ``returns``.
+    factor : float, optional
+        Multiplies the result. To annualize a deviation of returns of a
+        shorter period pass the square root of the number of periods in a
+        year, e.g. ``np.sqrt(BYEAR)`` for daily returns.
+
+    Returns
+    -------
+    out : float or array-like
+        Float for 1d input, one value per column for 2d input. NaN when
+        there is no valid observation.
+
+    Examples
+    --------
+    >>> downside_deviation(np.array([0.1, -0.1, 0.3, -0.2]))
+    0.1118033988749895
+
+    References
+    ----------
+    .. [1] Sortino, F. A., & Price, L. N. (1994). Performance measurement in
+           a downside risk framework. The Journal of Investing, 3(3), 59-64.
+    .. [2] https://en.wikipedia.org/wiki/Downside_risk
+    """
+    if factor is None:
+        factor = 1
+
+    diff = returns.__array__() - mar
+    dev = np.sqrt(_nanmean(np.minimum(diff, 0) ** 2)) * factor
+
+    return reduce_array_wrap(returns, dev)
+
+
+def upside_deviation(returns, mar=0.0, factor=None):
+    r"""Calculate the upside deviation of the returns.
+
+    Root mean square of the excess returns above the minimum acceptable
+    return :math:`\text{MAR}`, the mirror image of :func:`downside_deviation`:
+
+    .. math::
+
+        \sigma_u = \sqrt{\frac{1}{N}
+                   \sum_{t=1}^{N} \max(r_t - \text{MAR}, 0)^2}
+
+    The mean is taken over all :math:`N` valid observations, not only over
+    those above the MAR.
+
+    Parameters
+    ----------
+    returns : array-like
+        Returns series. Reductions are column-wise.
+    mar : float, optional
+        Minimum acceptable return, in the same units as ``returns``.
+    factor : float, optional
+        Multiplies the result. To annualize a deviation of returns of a
+        shorter period pass the square root of the number of periods in a
+        year, e.g. ``np.sqrt(BYEAR)`` for daily returns.
+
+    Returns
+    -------
+    out : float or array-like
+        Float for 1d input, one value per column for 2d input. NaN when
+        there is no valid observation.
+
+    Examples
+    --------
+    >>> upside_deviation(np.array([0.1, -0.1, 0.3, -0.2]))
+    0.15811388300841897
+
+    References
+    ----------
+    .. [1] https://en.wikipedia.org/wiki/Downside_risk
+    """
+    if factor is None:
+        factor = 1
+
+    diff = returns.__array__() - mar
+    dev = np.sqrt(_nanmean(np.maximum(diff, 0) ** 2)) * factor
+
+    return reduce_array_wrap(returns, dev)
+
+
+def kappa(returns, mar=0.0, order=2, factor=None):
+    r"""Calculate the Kappa ratio of Kaplan and Knowles.
+
+    Generalized downside risk-adjusted performance measure: the mean excess
+    return over the minimum acceptable return :math:`\text{MAR}` divided by
+    the ``order``-th root of the lower partial moment of that order [1]_:
+
+    .. math::
+
+        \kappa_n = \frac{\bar{r} - \text{MAR}}{\sqrt[n]{\text{LPM}_n}},
+        \quad
+        \text{LPM}_n = \frac{1}{N} \sum_{t=1}^{N} \max(\text{MAR} - r_t, 0)^n
+
+    ``order=1`` is the Omega ratio minus one (see :func:`omega_ratio`) and
+    ``order=2`` is the Sortino ratio (see :func:`sortino_ratio`).
+
+    Parameters
+    ----------
+    returns : array-like
+        Returns series. Reductions are column-wise.
+    mar : float, optional
+        Minimum acceptable return, in the same units as ``returns``.
+    order : float, optional
+        Order :math:`n` of the lower partial moment. Must be positive.
+    factor : float, optional
+        Multiplies the result. Annualizing the ratio requires the caller to
+        pass the matching factor, e.g. ``np.sqrt(BYEAR)`` for the Sortino
+        ratio (``order=2``) of daily returns.
+
+    Returns
+    -------
+    out : float or array-like
+        Float for 1d input, one value per column for 2d input. NaN when the
+        lower partial moment is zero (no return below the MAR) or when there
+        is no valid observation.
+
+    Raises
+    ------
+    ValueError
+        If ``order`` is not positive.
+
+    Examples
+    --------
+    >>> kappa(np.array([0.1, -0.1, 0.3, -0.2]), order=1)
+    0.3333333333333332
+
+    References
+    ----------
+    .. [1] Kaplan, P. D., & Knowles, J. A. (2004). Kappa: a generalized
+           downside risk-adjusted performance measure. Journal of Performance
+           Measurement, 8(3), 42-54.
+    """
+    if order <= 0:
+        raise ValueError(f"order must be positive, got {order}")
+    if factor is None:
+        factor = 1
+
+    diff = returns.__array__() - mar
+    lpm = _nanmean(np.maximum(-diff, 0) ** order)
+    den = lpm ** (1 / order)
+    den = np.where(den == 0, np.nan, den)  # zero denominator -> NaN, not inf
+    out = _nanmean(diff) / den * factor
+
+    return reduce_array_wrap(returns, out)
+
+
+def omega_ratio(returns, mar=0.0):
+    r"""Calculate the Omega ratio of Shadwick and Keating.
+
+    Probability-weighted gains over probability-weighted losses relative to
+    the minimum acceptable return :math:`\text{MAR}` [1]_. For a sample of
+    returns it is the sum of the excess returns above the MAR over the sum
+    of the shortfalls below it:
+
+    .. math::
+
+        \Omega = \frac{\sum_{t=1}^{N} \max(r_t - \text{MAR}, 0)}
+                      {\sum_{t=1}^{N} \max(\text{MAR} - r_t, 0)}
+
+    It equals ``1 + kappa(returns, mar, order=1)``.
+
+    Parameters
+    ----------
+    returns : array-like
+        Returns series. Reductions are column-wise.
+    mar : float, optional
+        Minimum acceptable return, in the same units as ``returns``.
+
+    Returns
+    -------
+    out : float or array-like
+        Float for 1d input, one value per column for 2d input. NaN when no
+        return is below the MAR (zero denominator) or when there is no valid
+        observation.
+
+    Examples
+    --------
+    >>> omega_ratio(np.array([0.1, -0.1, 0.3, -0.2]))
+    1.3333333333333333
+
+    References
+    ----------
+    .. [1] Keating, C., & Shadwick, W. F. (2002). A universal performance
+           measure. Journal of Performance Measurement, 6(3), 59-84.
+    """
+    diff = returns.__array__() - mar
+    gains = np.nansum(np.maximum(diff, 0), axis=0)
+    losses = np.nansum(np.maximum(-diff, 0), axis=0)
+    losses = np.where(losses == 0, np.nan, losses)  # 0 -> NaN, not inf
+    out = gains / losses
+
+    return reduce_array_wrap(returns, out)
+
+
+def sortino_ratio(returns, mar=0.0, factor=None):
+    r"""Calculate the Sortino ratio.
+
+    Risk-adjusted return that, unlike the Sharpe ratio, penalizes only the
+    returns falling below the minimum acceptable return :math:`\text{MAR}`
+    [1]_ [2]_:
+
+    .. math::
+
+        S = \frac{\bar{r} - \text{MAR}}{\sigma_d}
+
+    where :math:`\sigma_d` is the :func:`downside_deviation`. It is
+    :func:`kappa` with ``order=2``.
+
+    Parameters
+    ----------
+    returns : array-like
+        Returns series. Reductions are column-wise.
+    mar : float, optional
+        Minimum acceptable return (a.k.a. target or required return), in the
+        same units as ``returns``.
+    factor : float, optional
+        Multiplies the result. Annualizing the ratio requires the caller to
+        pass the square root of the number of periods in a year, e.g.
+        ``np.sqrt(BYEAR)`` for daily returns.
+
+    Returns
+    -------
+    out : float or array-like
+        Float for 1d input, one value per column for 2d input. NaN when no
+        return is below the MAR (zero downside deviation) or when there is
+        no valid observation.
+
+    Examples
+    --------
+    >>> rets = np.array([0.17, 0.15, 0.23, -0.05, 0.12, 0.09, 0.13, -0.04])
+    >>> sortino_ratio(rets)
+    4.417261042993862
+
+    >>> sortino_ratio(np.array([-0.1, -0.1, -0.1, -0.1]))
+    -1.0
+
+    References
+    ----------
+    .. [1] https://en.wikipedia.org/wiki/Sortino_ratio
+    .. [2] http://www.redrockcapital.com/
+           Sortino__A__Sharper__Ratio_Red_Rock_Capital.pdf
+    """
+    return kappa(returns, mar=mar, order=2, factor=factor)
+
+
+# ---------------------------------------------------------------------------
+# maximum drawdown details: peak, valley, recovery, durations and Morningstar's
+# average drawdown. Everything is computed column by column on 1D arrays.
+
+_PEAK, _VALLEY, _RECOVERY = 0, 1, 2
+
+
+def _columns(arr):
+    """Return the columns of a 1D or 2D array as a list of 1D arrays."""
+    if arr.ndim == 1:
+        return [arr]
+    if arr.ndim == 2:
+        return [arr[:, col] for col in range(arr.shape[1])]
+    raise NotImplementedError
+
+
+def _reduce_columns(prices, values):
+    """Wrap one value per column of ``prices`` like ``reduce_array_wrap``."""
+    if prices.ndim == 1:
+        values = values[0]
+    return reduce_array_wrap(prices, values)
+
+
+def _apply_columns(prices, func, *args):
+    """Apply ``func(column, *args)`` to every column of ``prices``."""
+    arr = prices.__array__()
+    values = np.array([func(col, *args) for col in _columns(arr)], float)
+    return _reduce_columns(prices, values)
+
+
+def _max_drawdown_span(arr):
+    """Locate the maximum relative drawdown of a 1D array.
+
+    Parameters
+    ----------
+    arr : numpy.ndarray
+        1D prices. Leading NaN are skipped and internal NaN are missing
+        observations: the running maximum carries forward through them and
+        they are never chosen.
+
+    Returns
+    -------
+    peak, valley, recovery : int
+        Positions of the running maximum in force at the valley (its last
+        touch before the valley), of the minimum drawdown (the first one on
+        ties) and of the first price at or above the peak after the valley.
+        ``recovery`` is -1 when the price never recovers and all three are
+        -1 when the price never falls below a previous high.
+    """
+    dd = expanding.drawdown(arr, relative=True).__array__()
+    if np.all(np.isnan(dd)) or np.nanmin(dd) >= 0:
+        return -1, -1, -1
+
+    valley = int(np.nanargmin(dd))
+    peak = int(np.flatnonzero(dd[: valley + 1] == 0)[-1])
+    after_valley = valley + 1
+    recovered = np.flatnonzero(arr[after_valley:] >= arr[peak])
+    recovery = int(after_valley + recovered[0]) if recovered.size else -1
+    return peak, valley, recovery
+
+
+def _max_drawdown_label(prices, item):
+    """Report one item of ``_max_drawdown_span`` per column.
+
+    numpy input keeps the positions as floats so NaN can mean "none"; pandas
+    input maps them to the index labels, missing (NaT or NaN) when none.
+    """
+    arr = prices.__array__()
+    positions = np.array(
+        [_max_drawdown_span(col)[item] for col in _columns(arr)], int
+    )
+    missing = positions < 0
+
+    if isinstance(prices, np.ndarray):
+        out = np.where(missing, np.nan, positions)
+    elif prices.index.size == 0:
+        out = np.full(positions.shape, np.nan)
+    else:
+        out = prices.index[np.maximum(positions, 0)].where(~missing)
+
+    return _reduce_columns(prices, out)
+
+
+def _max_drawdown_duration(arr):
+    """Periods from peak to valley; 0 without drawdown, NaN without data."""
+    if np.all(np.isnan(arr)):
+        return np.nan
+    peak, valley, _ = _max_drawdown_span(arr)
+    return valley - peak if peak >= 0 else 0
+
+
+def _max_drawdown_recovery_duration(arr):
+    """Periods from valley to recovery; NaN when there is none."""
+    _, valley, recovery = _max_drawdown_span(arr)
+    return recovery - valley if recovery >= 0 else np.nan
+
+
+def _longest_drawdown_duration(arr):
+    """Longest run of valid observations strictly below the running max."""
+    dd = expanding.drawdown(arr, relative=True).__array__()
+    under_water = dd[~np.isnan(dd)] < 0
+    if under_water.size == 0:
+        return np.nan
+
+    longest = run = 0
+    for is_under in under_water:
+        run = run + 1 if is_under else 0
+        longest = max(longest, run)
+    return longest
+
+
+def _average_drawdown(arr, periods_per_year):
+    """Morningstar's average drawdown of a 1D array."""
+    valid = arr[~np.isnan(arr)]
+    n_valid = valid.size
+    if n_valid == 0:
+        return np.nan
+
+    edges = range(0, n_valid + periods_per_year, periods_per_year)
+    blocks = [valid[start:stop] for start, stop in zip(edges, edges[1:])]
+    mdd_sum = sum(max_drawdown(block) for block in blocks)
+    return mdd_sum / (n_valid / periods_per_year)
+
+
+def max_drawdown_peak(prices):
+    """Locate the peak the maximum drawdown fell from.
+
+    The peak is the last time the price stood at the running maximum in
+    force at the valley of the maximum drawdown, see :func:`max_drawdown`.
+
+    Parameters
+    ----------
+    prices : array-like
+        Prices data.
+
+    Returns
+    -------
+    out : float, label or array-like
+        For numpy input the position as a float (NaN without drawdown), for
+        pandas input the index label (missing without drawdown). Reduced
+        column-wise: a Series indexed by the columns for a DataFrame.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> max_drawdown_peak(np.array([10, 8, 6, 9, 10, 7]))
+    0.0
+
+    >>> max_drawdown_peak(np.array([1, 2, 3]))
+    nan
+
+    References
+    ----------
+    .. [1] https://en.wikipedia.org/wiki/Drawdown_(economics)
+    .. [2] Enrico Schumann - Computing Drawdown Statistics
+       http://comisef.wikidot.com/tutorial:drawdowns
+    """
+    return _max_drawdown_label(prices, _PEAK)
+
+
+def max_drawdown_valley(prices):
+    """Locate the valley (trough) of the maximum drawdown.
+
+    The valley is the first time the relative drawdown reaches its minimum,
+    see :func:`max_drawdown`.
+
+    Parameters
+    ----------
+    prices : array-like
+        Prices data.
+
+    Returns
+    -------
+    out : float, label or array-like
+        For numpy input the position as a float (NaN without drawdown), for
+        pandas input the index label (missing without drawdown). Reduced
+        column-wise: a Series indexed by the columns for a DataFrame.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> max_drawdown_valley(np.array([10, 8, 6, 9, 10, 7]))
+    2.0
+
+    >>> import pandas as pd
+    >>> index = pd.date_range("2020-01-01", periods=6)
+    >>> max_drawdown_valley(pd.Series([10, 8, 6, 9, 10, 7], index=index))
+    Timestamp('2020-01-03 00:00:00')
+
+    References
+    ----------
+    .. [1] https://en.wikipedia.org/wiki/Drawdown_(economics)
+    .. [2] Enrico Schumann - Computing Drawdown Statistics
+       http://comisef.wikidot.com/tutorial:drawdowns
+    """
+    return _max_drawdown_label(prices, _VALLEY)
+
+
+def max_drawdown_recovery(prices):
+    """Locate the recovery from the maximum drawdown.
+
+    The recovery is the first time after the valley the price is back at or
+    above the peak price, see :func:`max_drawdown_peak`.
+
+    Parameters
+    ----------
+    prices : array-like
+        Prices data.
+
+    Returns
+    -------
+    out : float, label or array-like
+        For numpy input the position as a float, for pandas input the index
+        label. NaN (missing) when the price never recovers or there is no
+        drawdown. Reduced column-wise: a Series indexed by the columns for a
+        DataFrame.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> max_drawdown_recovery(np.array([10, 8, 6, 9, 10, 7]))
+    4.0
+
+    >>> max_drawdown_recovery(np.array([10, 8, 6, 9]))
+    nan
+
+    References
+    ----------
+    .. [1] https://en.wikipedia.org/wiki/Drawdown_(economics)
+    .. [2] Enrico Schumann - Computing Drawdown Statistics
+       http://comisef.wikidot.com/tutorial:drawdowns
+    """
+    return _max_drawdown_label(prices, _RECOVERY)
+
+
+def max_drawdown_duration(prices):
+    """Calculate the duration of the maximum drawdown.
+
+    Number of periods from the peak to the valley of the maximum drawdown,
+    see :func:`max_drawdown_peak` and :func:`max_drawdown_valley`.
+
+    Parameters
+    ----------
+    prices : array-like
+        Prices data.
+
+    Returns
+    -------
+    out : float or array-like
+        Periods from peak to valley, 0 when the price never falls below a
+        previous high and NaN without valid observations.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> max_drawdown_duration(np.array([10, 8, 6, 9, 10, 7]))
+    2.0
+
+    >>> max_drawdown_duration(np.array([1, 2, 3]))
+    0.0
+
+    References
+    ----------
+    .. [1] Bacon, C. Practical Portfolio Performance Measurement and
+       Attribution. Wiley. 2004.
+    .. [2] https://en.wikipedia.org/wiki/Drawdown_(economics)
+    """
+    return _apply_columns(prices, _max_drawdown_duration)
+
+
+def max_drawdown_recovery_duration(prices):
+    """Calculate the recovery time of the maximum drawdown.
+
+    Number of periods from the valley of the maximum drawdown to its
+    recovery, see :func:`max_drawdown_recovery`.
+
+    Parameters
+    ----------
+    prices : array-like
+        Prices data.
+
+    Returns
+    -------
+    out : float or array-like
+        Periods from valley to recovery. NaN when the price never recovers
+        or there is no drawdown.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> max_drawdown_recovery_duration(np.array([10, 8, 6, 9, 10, 7]))
+    2.0
+
+    >>> max_drawdown_recovery_duration(np.array([10, 8, 6, 9]))
+    nan
+
+    References
+    ----------
+    .. [1] Bacon, C. Practical Portfolio Performance Measurement and
+       Attribution. Wiley. 2004.
+    .. [2] https://en.wikipedia.org/wiki/Drawdown_(economics)
+    """
+    return _apply_columns(prices, _max_drawdown_recovery_duration)
+
+
+def longest_drawdown_duration(prices):
+    """Calculate the longest time under water.
+
+    Longest number of consecutive periods with the price strictly below its
+    running maximum. It need not be the deepest drawdown. A stretch still
+    open at the end of the series counts and internal NaN are ignored: they
+    neither break nor extend a stretch.
+
+    Parameters
+    ----------
+    prices : array-like
+        Prices data.
+
+    Returns
+    -------
+    out : float or array-like
+        Longest number of periods under water, 0 when the price never falls
+        below a previous high and NaN without valid observations.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> longest_drawdown_duration(np.array([10, 9, 9, 9, 10, 2, 10]))
+    3.0
+
+    >>> longest_drawdown_duration(np.array([1, 2, 3]))
+    0.0
+
+    References
+    ----------
+    .. [1] Bacon, C. Practical Portfolio Performance Measurement and
+       Attribution. Wiley. 2004.
+    .. [2] https://en.wikipedia.org/wiki/Drawdown_(economics)
+    """
+    return _apply_columns(prices, _longest_drawdown_duration)
+
+
+def average_drawdown(prices, periods_per_year=BYEAR):
+    r"""Calculate Morningstar's Average Drawdown.
+
+    The valid observations are split into consecutive blocks of
+    ``periods_per_year`` observations, the maximum relative drawdown of each
+    block is computed independently (every block starts its own running
+    maximum) and the sum is spread over the number of years covered:
+
+    .. math::
+
+        AvgDD = \frac{\sum_{t=1}^{n} MDD_{t}}{N / \text{periods\_per\_year}}
+
+    where :math:`N` is the number of valid observations, so a partial last
+    block is weighted by its length [1]_. This is the downside risk measure
+    of the Sterling ratio. Drawdowns are negative in this library, so the
+    result is negative or zero.
+
+    Parameters
+    ----------
+    prices : array-like
+        Prices data.
+    periods_per_year : int, optional
+        Observations per block (year).
+
+    Returns
+    -------
+    out : float or array-like
+        Average drawdown, 0 when the price never falls below a previous high
+        and NaN without valid observations.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> prices = np.array([10, 8, 6, 9, 10, 7])
+    >>> average_drawdown(prices, periods_per_year=3)  # (-0.4 - 0.3) / 2
+    -0.35
+
+    >>> average_drawdown(prices, periods_per_year=6)  # one block
+    -0.4
+
+    References
+    ----------
+    .. [1] Morningstar - Custom Calculation Data Points, Average Drawdown
+       https://morningstardirect.morningstar.com/clientcomm/
+       customcalculations.pdf
+    """
+    return _apply_columns(prices, _average_drawdown, periods_per_year)
 
 
 def _pairwise_complete(col, bench):
