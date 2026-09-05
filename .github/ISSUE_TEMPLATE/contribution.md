@@ -1,3 +1,8 @@
+---
+name: Contribution
+about: Checklist for a new contribution
+---
+
 ## Description
 
 - closes #xy

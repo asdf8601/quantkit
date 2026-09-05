@@ -3,4 +3,4 @@ Install
 
 .. code-block:: bash
 
-    pip install git+https://github.com/mmngreco/quantkit
+    pip install git+https://github.com/asdf8601/quantkit

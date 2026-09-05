@@ -15,7 +15,7 @@ setup(
     description="Quantitative functions for finance analysis.",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/mmngreco/quantkit",
+    url="https://github.com/asdf8601/quantkit",
     author="mmngreco",
     classifiers=[
         "Development Status :: 3 - Alpha",
@@ -30,5 +30,5 @@ setup(
     package_dir={"": "src"},
     packages=find_packages(where="src"),
     python_requires=">=3.5, <4",
-    install_requires=["numpy", "pandas"],
+    install_requires=["numpy<2", "pandas<2"],
 )
