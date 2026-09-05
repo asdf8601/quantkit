@@ -560,3 +560,259 @@ def calmar_ratio(returns, periods_per_year=BYEAR):
         out = out[()]
 
     return reduce_array_wrap(returns, out)
+
+
+def _nan_divide(numerator, denominator):
+    """Divide returning NaN, never inf, where the denominator is zero."""
+    return numerator / np.where(denominator != 0, denominator, np.nan)
+
+
+def _masked_mean(arr, mask, method):
+    """Column-wise mean of ``arr`` over the periods selected by ``mask``.
+
+    Periods outside the mask, NaN included, do not contribute. A column with
+    no selected period gives NaN.
+    """
+    if method not in ("arith", "geo"):
+        raise ValueError(f"method must be 'arith' or 'geo', got {method!r}")
+
+    selected = np.where(mask, arr, 0)
+    if method == "geo":
+        # prod(1 + r) ** (1 / n) - 1 == expm1(mean(log1p(r))). log1p(-1) is
+        # -inf for a total loss and expm1 maps it back to -1.
+        with np.errstate(divide="ignore"):
+            selected = np.log1p(selected)
+
+    mean = _nan_divide(selected.sum(axis=0), mask.sum(axis=0))
+
+    if method == "geo":
+        mean = np.expm1(mean)
+
+    return mean
+
+
+def average_gain(returns, method="arith"):
+    r"""Calculate the average gain.
+
+    The mean of the returns over the periods with a gain, :math:`r_t > 0`.
+    Periods with a zero or negative return and NaN are left out.
+
+    .. math::
+
+        \text{arith} = \frac{1}{n_g} \sum_{r_t > 0} r_t
+
+        \text{geo} = \left( \prod_{r_t > 0} (1 + r_t) \right)^{1 / n_g} - 1
+
+    The geometric mean is Morningstar's definition of Average Gain [1]_.
+
+    Parameters
+    ----------
+    returns : array-like
+        Returns series, 1 or 2 dimensions. Reduces along axis 0.
+    method : {"arith", "geo"}, optional
+        Arithmetic (default) or geometric mean of the gains.
+
+    Returns
+    -------
+    out : float or array-like
+        Average gain per column. NaN when there is no gain.
+
+    Raises
+    ------
+    ValueError
+        If ``method`` is neither "arith" nor "geo".
+
+    References
+    ----------
+    .. [1] Morningstar, Custom Calculation Data Points, October 2016.
+    https://morningstardirect.morningstar.com/clientcomm/customcalculations.pdf
+
+    Examples
+    --------
+    >>> returns = np.array([0.10, -0.05, 0.20])
+    >>> average_gain(returns)
+    0.15
+
+    >>> average_gain(returns, method="geo")
+    0.1489125293076057
+    """
+    arr = returns.__array__()
+    out = _masked_mean(arr, arr > 0, method)
+    return reduce_array_wrap(returns, out)
+
+
+def average_loss(returns, method="arith"):
+    r"""Calculate the average loss.
+
+    The mean of the returns over the periods with a loss, :math:`r_t < 0`, so
+    the result is negative. Periods with a zero or positive return and NaN are
+    left out.
+
+    .. math::
+
+        \text{arith} = \frac{1}{n_l} \sum_{r_t < 0} r_t
+
+        \text{geo} = \left( \prod_{r_t < 0} (1 + r_t) \right)^{1 / n_l} - 1
+
+    The geometric mean is Morningstar's definition of Average Loss [1]_.
+
+    Parameters
+    ----------
+    returns : array-like
+        Returns series, 1 or 2 dimensions. Reduces along axis 0.
+    method : {"arith", "geo"}, optional
+        Arithmetic (default) or geometric mean of the losses.
+
+    Returns
+    -------
+    out : float or array-like
+        Average loss per column, negative. NaN when there is no loss.
+
+    Raises
+    ------
+    ValueError
+        If ``method`` is neither "arith" nor "geo".
+
+    References
+    ----------
+    .. [1] Morningstar, Custom Calculation Data Points, October 2016.
+    https://morningstardirect.morningstar.com/clientcomm/customcalculations.pdf
+
+    Examples
+    --------
+    >>> returns = np.array([-0.10, 0.05, -0.20])
+    >>> average_loss(returns)
+    -0.15
+
+    >>> average_loss(returns, method="geo")
+    -0.1514718625761430
+    """
+    arr = returns.__array__()
+    out = _masked_mean(arr, arr < 0, method)
+    return reduce_array_wrap(returns, out)
+
+
+def gain_loss_ratio(returns):
+    r"""Calculate Morningstar's Gain/Loss Ratio.
+
+    The ratio between the arithmetic average gain and the arithmetic average
+    loss, in absolute value, multiplied by the ratio between the number of
+    periods with a gain and the number of periods with a loss [1]_. Zero
+    returns and NaN are neither gains nor losses.
+
+    .. math::
+
+        GL = \left| \frac{\bar{r}_g}{\bar{r}_l} \right| \frac{n_g}{n_l}
+           = \frac{\sum_{r_t > 0} r_t}{\left| \sum_{r_t < 0} r_t \right|}
+
+    Both forms are the same number: the counts cancel out and the ratio is
+    the sum of the gains over the absolute sum of the losses.
+
+    Parameters
+    ----------
+    returns : array-like
+        Returns series, 1 or 2 dimensions. Reduces along axis 0.
+
+    Returns
+    -------
+    out : float or array-like
+        Gain/Loss Ratio per column. NaN when there is no loss, 0 when there
+        are losses but no gain.
+
+    References
+    ----------
+    .. [1] Morningstar, Custom Calculation Data Points, October 2016.
+    https://morningstardirect.morningstar.com/clientcomm/customcalculations.pdf
+
+    Examples
+    --------
+    >>> returns = np.array([0.1, 0.2, -0.1])
+    >>> gain_loss_ratio(returns)
+    3.0
+    """
+    arr = returns.__array__()
+    gains = np.where(arr > 0, arr, 0).sum(axis=0)
+    losses = -np.where(arr < 0, arr, 0).sum(axis=0)
+    out = _nan_divide(gains, losses)
+    return reduce_array_wrap(returns, out)
+
+
+def up_period_percent(returns):
+    r"""Calculate the fraction of periods with a return at or above zero.
+
+    Number of periods whose return is greater than or equal to 0 over the
+    number of valid periods [1]_. A zero return counts as an up period and
+    NaN is left out of both counts.
+
+    .. math::
+
+        UP = \frac{\#\{t : r_t \geq 0\}}{\#\{t : r_t \text{ is not NaN}\}}
+
+    Despite the name, the output is in parts per unit (0.75, not 75), like
+    the rest of the library with ``relative=True``.
+
+    Parameters
+    ----------
+    returns : array-like
+        Returns series, 1 or 2 dimensions. Reduces along axis 0.
+
+    Returns
+    -------
+    out : float or array-like
+        Fraction in [0, 1] per column. NaN when there is no valid period. It
+        adds up to 1 with :func:`down_period_percent`.
+
+    References
+    ----------
+    .. [1] Morningstar, Custom Calculation Data Points, October 2016.
+    https://morningstardirect.morningstar.com/clientcomm/customcalculations.pdf
+
+    Examples
+    --------
+    >>> returns = np.array([0.1, 0.0, -0.1, 0.2])
+    >>> up_period_percent(returns)
+    0.75
+    """
+    arr = returns.__array__()
+    out = _nan_divide((arr >= 0).sum(axis=0), (~np.isnan(arr)).sum(axis=0))
+    return reduce_array_wrap(returns, out)
+
+
+def down_period_percent(returns):
+    r"""Calculate the fraction of periods with a return below zero.
+
+    Number of periods whose return is less than 0 over the number of valid
+    periods [1]_. NaN is left out of both counts.
+
+    .. math::
+
+        DOWN = \frac{\#\{t : r_t < 0\}}{\#\{t : r_t \text{ is not NaN}\}}
+
+    Despite the name, the output is in parts per unit (0.25, not 25), like
+    the rest of the library with ``relative=True``.
+
+    Parameters
+    ----------
+    returns : array-like
+        Returns series, 1 or 2 dimensions. Reduces along axis 0.
+
+    Returns
+    -------
+    out : float or array-like
+        Fraction in [0, 1] per column. NaN when there is no valid period. It
+        adds up to 1 with :func:`up_period_percent`.
+
+    References
+    ----------
+    .. [1] Morningstar, Custom Calculation Data Points, October 2016.
+    https://morningstardirect.morningstar.com/clientcomm/customcalculations.pdf
+
+    Examples
+    --------
+    >>> returns = np.array([0.1, 0.0, -0.1, 0.2])
+    >>> down_period_percent(returns)
+    0.25
+    """
+    arr = returns.__array__()
+    out = _nan_divide((arr < 0).sum(axis=0), (~np.isnan(arr)).sum(axis=0))
+    return reduce_array_wrap(returns, out)
