@@ -37,6 +37,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- None
+- Replace the removed pandas `__array_wrap__` with `quantkit.utils.array_wrap`,
+  adding support for pandas 2 and 3. The temporary `numpy<2, pandas<2` pins
+  are gone.
 
 [Unreleased]: https://github.com/asdf8601/quantkit/compare/v0.0.0...HEAD

@@ -100,3 +100,30 @@ def iloc(obj, idx):
         raise NotImplementedError
 
     return out
+
+
+def array_wrap(like, values):
+    """Wrap ``values`` in the same container type as ``like``.
+
+    Public replacement for ``like.__array_wrap__(values)``, removed from
+    pandas 2.0. Pandas objects are rebuilt with the axes and name of ``like``
+    without copying ``values``; numpy objects keep numpy's own protocol.
+
+    Parameters
+    ----------
+    like : pandas.Series, pandas.DataFrame or numpy.ndarray
+        Object whose type and axes are preserved.
+    values : array-like
+        Data to wrap. Must match the shape of ``like``.
+
+    Returns
+    -------
+    out : same type as ``like``
+    """
+    if isinstance(like, pd.DataFrame):
+        return pd.DataFrame(
+            values, index=like.index, columns=like.columns, copy=False
+        )
+    if isinstance(like, pd.Series):
+        return pd.Series(values, index=like.index, name=like.name, copy=False)
+    return like.__array_wrap__(np.asarray(values))

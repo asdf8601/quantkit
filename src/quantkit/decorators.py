@@ -27,7 +27,7 @@ intput to {pandas, numpy} -> output to {pandas, numpy}:
 - array_wrap_increase  (increse one dimension)
 """
 import pandas as pd
-from quantkit.utils import iloc
+from quantkit.utils import array_wrap, iloc
 
 from functools import wraps
 
@@ -110,7 +110,7 @@ def array_output_wrapper(pos):
         def deco(*args, **kwargs):
             argument = args[pos]
             out = func(*args, **kwargs)
-            return argument.__array_wrap__(out)
+            return array_wrap(argument, out)
 
         return deco
 
@@ -167,7 +167,7 @@ def reduce_array_wrap(obj, res):
 
     if ndim == 2:
         new_obj = iloc(obj, 0)
-        out = new_obj.__array_wrap__(res)
+        out = array_wrap(new_obj, res)
     elif ndim == 1:
         out = res
     else:

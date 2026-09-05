@@ -1,6 +1,8 @@
 """Core module contains common functions to perform finance analysis."""
 import numpy as np
 
+from quantkit.utils import array_wrap
+
 
 def returns(prices, period=1, out=None):
     """Arithmetic Returns.
@@ -41,7 +43,7 @@ def returns(prices, period=1, out=None):
     np.divide(xti, xt0, out=out[period:])
     np.subtract(out, 1, out=out)
 
-    out = prices.__array_wrap__(out)
+    out = array_wrap(prices, out)
     return out
 
 
@@ -88,7 +90,7 @@ def cum_returns(returns, first_price=None, out=None):
     else:
         np.multiply(out, first_price, out=out)
 
-    out = returns.__array_wrap__(out)
+    out = array_wrap(returns, out)
     return out
 
 
