@@ -1821,3 +1821,85 @@ def bear_beta(returns, benchmark):
     0.5
     """
     return _reduce_pairwise(returns, benchmark, _bear_beta)
+
+
+def _treynor(col, bench, risk_free, factor):
+    """Treynor ratio of one column: mean(col - rf) / beta(col, bench).
+
+    NaN whenever the beta cannot be used as a denominator: either it is
+    itself NaN, or the column has no dispersion and its beta is zero up to
+    rounding, in which case the ratio is undefined rather than infinite.
+    """
+    if _is_degenerate(col):
+        return np.nan
+    beta_ = _beta(col, bench)
+    if np.isnan(beta_) or beta_ == 0:
+        return np.nan
+    return np.mean(col - risk_free) / beta_ * factor
+
+
+def treynor_ratio(returns, benchmark, risk_free=0.0, factor=None):
+    r"""Compute the Treynor ratio of ``returns`` against ``benchmark``.
+
+    Morningstar's arithmetic Treynor ratio is the mean excess return per
+    unit of systematic risk
+
+    .. math::
+
+        T_i = \frac{\overline{(r_i - r_f)}}{\beta_i}
+
+    where :math:`\beta_i` is :func:`beta` estimated on the same pairwise
+    complete rows. It is :func:`sharpe_ratio` with the total risk of the
+    asset, its standard deviation, replaced by its systematic risk, so it
+    rewards a portfolio only for the market exposure it takes and ignores
+    the diversifiable part of its volatility.
+
+    Morningstar annualizes the numerator before dividing; here ``factor``
+    does that, and since the numerator is linear it scales the whole ratio.
+
+    Parameters
+    ----------
+    returns : array-like
+        1D or 2D asset returns. Pandas objects are inner-joined with the
+        benchmark on their index, see :func:`quantkit.utils.align`.
+    benchmark : array-like
+        1D benchmark returns, usually a market index.
+    risk_free : float, optional
+        Risk free rate per period, in the same basis as the returns.
+    factor : float, optional
+        Multiplies the result to change its basis, e.g. 12 to annualize a
+        monthly ratio as Morningstar does.
+
+    Returns
+    -------
+    treynor_ratio : float or array-like
+        One value per column of ``returns``. NaN whenever :func:`beta` is,
+        and also when the beta is zero, since the ratio is then undefined:
+        the result is never infinite.
+
+    Raises
+    ------
+    ValueError
+        If ``benchmark`` is not 1D or the numpy lengths differ.
+
+    References
+    ----------
+    .. [1]: https://en.wikipedia.org/wiki/Treynor_ratio
+    .. [2]: Morningstar, "Custom Calculation Data Points", Treynor Ratio.
+            https://morningstardirect.morningstar.com/clientcomm/
+            CustomCalculationDataPoints.pdf
+
+    Examples
+    --------
+    >>> benchmark = np.array([0.5, -0.25, 0.75, -0.5])
+    >>> returns = 2 * benchmark + 0.125  # beta 2, mean 0.375
+    >>> treynor_ratio(returns, benchmark)
+    0.1875
+    """
+    if factor is None:
+        factor = 1
+
+    def _ratio(col, bench):
+        return _treynor(col, bench, risk_free, factor)
+
+    return _reduce_pairwise(returns, benchmark, _ratio)
