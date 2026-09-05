@@ -1821,3 +1821,267 @@ def bear_beta(returns, benchmark):
     0.5
     """
     return _reduce_pairwise(returns, benchmark, _bear_beta)
+
+
+def _compound(arr):
+    """Compound (geometrically linked) return of ``arr``: prod(1 + r) - 1."""
+    return np.prod(1 + arr) - 1
+
+
+def _capture(col, bench, mask):
+    """Compound return of ``col`` over that of ``bench`` on ``mask`` rows.
+
+    NaN when the mask selects no row at all, so that the empty product does
+    not silently divide 0 by 0, and when the benchmark compounds to exactly
+    0 over the selected rows.
+    """
+    if not mask.any():
+        return np.nan
+
+    denominator = _compound(bench[mask])
+    if denominator == 0:
+        return np.nan
+
+    return _compound(col[mask]) / denominator
+
+
+def _up_capture(col, bench):
+    """Capture ratio over the rows where the benchmark did not fall."""
+    return _capture(col, bench, bench >= 0)
+
+
+def _down_capture(col, bench):
+    """Capture ratio over the rows where the benchmark fell."""
+    return _capture(col, bench, bench < 0)
+
+
+def _overall_capture(col, bench):
+    """Up capture over down capture, NaN when the latter is zero."""
+    down = _down_capture(col, bench)
+    if down == 0:
+        return np.nan
+    return _up_capture(col, bench) / down
+
+
+def _batting_average(col, bench):
+    """Fraction of the rows where ``col`` is at or above ``bench``."""
+    if col.size == 0:
+        return np.nan
+    return (col >= bench).sum() / col.size
+
+
+def up_capture(returns, benchmark):
+    r"""Compute the up capture ratio against ``benchmark``.
+
+    Morningstar's Up Capture Ratio: how much of the benchmark's rise the
+    asset captured [1]_. Over the rows where the benchmark did not fall,
+    the compound return of the asset divided by the compound return of the
+    benchmark:
+
+    .. math::
+
+        UC_i = \frac{\prod_{r_{b,t} \geq 0} (1 + r_{i,t}) - 1}
+                    {\prod_{r_{b,t} \geq 0} (1 + r_{b,t}) - 1}
+
+    A period with a zero benchmark return counts as an up period, matching
+    :func:`up_period_percent`. The returns are compounded, not added, so
+    the ratio of a single up period is the plain ratio of the two returns
+    but the ratio of several is not.
+
+    The output is in parts per unit (1.10, not 110), like the rest of the
+    library with ``relative=True``; Morningstar quotes it as a percentage.
+
+    Parameters
+    ----------
+    returns : array-like
+        1D or 2D asset returns. Pandas objects are inner-joined with the
+        benchmark on their index, see :func:`quantkit.utils.align`.
+    benchmark : array-like
+        1D benchmark returns, usually a market index.
+
+    Returns
+    -------
+    up_capture : float or array-like
+        One value per column of ``returns``. NaN when no complete row has a
+        benchmark at or above zero, or when the benchmark compounds to
+        exactly 0 over those rows.
+
+    Raises
+    ------
+    ValueError
+        If ``benchmark`` is not 1D or the numpy lengths differ.
+
+    References
+    ----------
+    .. [1]: Morningstar, "Custom Calculation Data Points", Up Capture Ratio.
+            https://morningstardirect.morningstar.com/clientcomm/
+            CustomCalculationDataPoints.pdf
+
+    Examples
+    --------
+    >>> benchmark = np.array([0.5, -0.5])
+    >>> returns = np.array([1.0, -0.25])  # 2b up, 0.5b down
+    >>> up_capture(returns, benchmark)
+    2.0
+    """
+    return _reduce_pairwise(returns, benchmark, _up_capture)
+
+
+def down_capture(returns, benchmark):
+    r"""Compute the down capture ratio against ``benchmark``.
+
+    Morningstar's Down Capture Ratio: how much of the benchmark's fall the
+    asset suffered [1]_. Same as :func:`up_capture` over the rows where the
+    benchmark fell:
+
+    .. math::
+
+        DC_i = \frac{\prod_{r_{b,t} < 0} (1 + r_{i,t}) - 1}
+                    {\prod_{r_{b,t} < 0} (1 + r_{b,t}) - 1}
+
+    Both compound returns are usually negative, so the ratio is usually
+    positive: above 1 means the asset fell more than the benchmark, below 1
+    that it fell less, and a negative value that it rose while the benchmark
+    fell. A period with a zero benchmark return is an up period and does not
+    take part.
+
+    The output is in parts per unit (1.10, not 110), like the rest of the
+    library with ``relative=True``; Morningstar quotes it as a percentage.
+
+    Parameters
+    ----------
+    returns : array-like
+        1D or 2D asset returns. Pandas objects are inner-joined with the
+        benchmark on their index, see :func:`quantkit.utils.align`.
+    benchmark : array-like
+        1D benchmark returns, usually a market index.
+
+    Returns
+    -------
+    down_capture : float or array-like
+        One value per column of ``returns``. NaN when no complete row has a
+        negative benchmark, or when the benchmark compounds to exactly 0
+        over those rows.
+
+    Raises
+    ------
+    ValueError
+        If ``benchmark`` is not 1D or the numpy lengths differ.
+
+    References
+    ----------
+    .. [1]: Morningstar, "Custom Calculation Data Points", Down Capture
+            Ratio. https://morningstardirect.morningstar.com/clientcomm/
+            CustomCalculationDataPoints.pdf
+
+    Examples
+    --------
+    >>> benchmark = np.array([0.5, -0.5])
+    >>> returns = np.array([1.0, -0.25])  # 2b up, 0.5b down
+    >>> down_capture(returns, benchmark)
+    0.5
+    """
+    return _reduce_pairwise(returns, benchmark, _down_capture)
+
+
+def overall_capture(returns, benchmark):
+    r"""Compute the overall capture ratio against ``benchmark``.
+
+    Morningstar's Overall Capture Ratio, the up capture over the down
+    capture [1]_:
+
+    .. math::
+
+        OC_i = \frac{UC_i}{DC_i}
+
+    Above 1 the asset takes more of the benchmark's upside than of its
+    downside, below 1 the other way round.
+
+    The output is in parts per unit (1.10, not 110), like the rest of the
+    library with ``relative=True``; Morningstar quotes it as a percentage.
+
+    Parameters
+    ----------
+    returns : array-like
+        1D or 2D asset returns. Pandas objects are inner-joined with the
+        benchmark on their index, see :func:`quantkit.utils.align`.
+    benchmark : array-like
+        1D benchmark returns, usually a market index.
+
+    Returns
+    -------
+    overall_capture : float or array-like
+        One value per column of ``returns``. NaN whenever
+        :func:`up_capture` or :func:`down_capture` is, and when the down
+        capture is 0.
+
+    Raises
+    ------
+    ValueError
+        If ``benchmark`` is not 1D or the numpy lengths differ.
+
+    References
+    ----------
+    .. [1]: Morningstar, "Custom Calculation Data Points", Overall Capture
+            Ratio. https://morningstardirect.morningstar.com/clientcomm/
+            CustomCalculationDataPoints.pdf
+
+    Examples
+    --------
+    >>> benchmark = np.array([0.5, -0.5])
+    >>> returns = np.array([1.0, -0.25])  # up capture 2, down capture 0.5
+    >>> overall_capture(returns, benchmark)
+    4.0
+    """
+    return _reduce_pairwise(returns, benchmark, _overall_capture)
+
+
+def batting_average(returns, benchmark):
+    r"""Compute the fraction of periods that beat or match ``benchmark``.
+
+    Morningstar's Batting Average: the number of periods where the asset
+    return is greater than or equal to the benchmark return over the number
+    of periods compared [1]_. A tie counts as a hit, and only the rows where
+    both sides are non-NaN are compared.
+
+    .. math::
+
+        BA_i = \frac{\#\{t : r_{i,t} \geq r_{b,t}\}}{\#\{t\}}
+
+    The size of the win or of the loss does not matter, only its sign. The
+    output is in parts per unit (0.75, not 75), like the rest of the library
+    with ``relative=True``; Morningstar quotes it as a percentage.
+
+    Parameters
+    ----------
+    returns : array-like
+        1D or 2D asset returns. Pandas objects are inner-joined with the
+        benchmark on their index, see :func:`quantkit.utils.align`.
+    benchmark : array-like
+        1D benchmark returns, usually a market index.
+
+    Returns
+    -------
+    batting_average : float or array-like
+        Fraction in [0, 1], one value per column of ``returns``. NaN when
+        there is no complete row to compare.
+
+    Raises
+    ------
+    ValueError
+        If ``benchmark`` is not 1D or the numpy lengths differ.
+
+    References
+    ----------
+    .. [1]: Morningstar, "Custom Calculation Data Points", Batting Average.
+            https://morningstardirect.morningstar.com/clientcomm/
+            CustomCalculationDataPoints.pdf
+
+    Examples
+    --------
+    >>> benchmark = np.array([0.10, -0.10, 0.05, 0.00])
+    >>> returns = np.array([0.20, -0.20, 0.05, 0.10])  # win, loss, tie, win
+    >>> batting_average(returns, benchmark)
+    0.75
+    """
+    return _reduce_pairwise(returns, benchmark, _batting_average)
