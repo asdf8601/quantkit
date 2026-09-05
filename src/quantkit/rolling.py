@@ -1,7 +1,8 @@
-from quantkit.decorators import numpy2pandas_args_wrapper, array_output_wrapper
-from quantkit.conventions import BYEAR
-from quantkit.stats import volatility as stat_vol
 import numpy as np
+
+from quantkit.conventions import BYEAR
+from quantkit.decorators import array_output_wrapper, numpy2pandas_args_wrapper
+from quantkit.stats import volatility as stat_vol
 
 
 @numpy2pandas_args_wrapper(0)

@@ -6,6 +6,7 @@
 ## Tasks
 
 - [ ] included tests (new test)
-- [ ] all tests passed (`pytest test`)
-- [ ] check flake8 complains (`flake8 src` and `black src -l79`)
-- [ ] docstring added (`pydocstyle src`)
+- [ ] all tests passed (`uv run pytest`)
+- [ ] lint and format clean (`uv run ruff check` and `uv run ruff format --check`)
+- [ ] types clean (`uv run ty check`)
+- [ ] docstring added (numpy style, enforced by ruff `D` rules)
