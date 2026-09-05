@@ -26,14 +26,16 @@ intput to {pandas, numpy} -> output to {pandas, numpy}:
 - array_wrap_transform  (non-collapsing)
 - array_wrap_increase  (increse one dimension)
 """
-import pandas as pd
-from quantkit.utils import array_wrap, iloc
 
 from functools import wraps
 
+import pandas as pd
+
+from quantkit.utils import array_wrap, iloc
+
 
 def _np2pd(np_obj):
-    if isinstance(np_obj, pd.core.generic.NDFrame):
+    if isinstance(np_obj, (pd.Series, pd.DataFrame)):
         # is a pandas object
         pd_obj = np_obj
 
@@ -67,6 +69,7 @@ def numpy2pandas_args_wrapper(*pos):
     -------
     decorated_func : function
     """
+
     def maker(func):
         @wraps(func)
         def deco(*args, **kwargs):
@@ -105,6 +108,7 @@ def array_output_wrapper(pos):
     -------
     decorated_func : function
     """
+
     def maker(func):
         @wraps(func)
         def deco(*args, **kwargs):
