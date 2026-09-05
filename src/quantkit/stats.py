@@ -2265,3 +2265,174 @@ def sterling_ratio(returns, periods_per_year=BYEAR, excess=0.10):
         out = out[()]
 
     return reduce_array_wrap(returns, out)
+
+
+# ---------------------------------------------------------------------------
+# active return statistics: tracking error and information ratio
+
+
+def _active_return(col, bench):
+    """Active return ``col - bench`` and its standard deviation, ``ddof=1``.
+
+    A fund that moves exactly with its benchmark has a constant active
+    return, yet subtracting two series of rounded decimals leaves a spread
+    of a few ulp around that constant, so an exact equality test does not
+    recognise it. A deviation below the rounding noise of the inputs is
+    reported as exactly zero rather than as dispersion. ``col`` must hold at
+    least two observations.
+    """
+    active = col - bench
+    std = np.std(active, ddof=1)
+    scale = max(np.abs(col).max(), np.abs(bench).max())
+    tol = 4 * np.finfo(float).eps * scale
+    return active, 0.0 if std <= tol else std
+
+
+def _tracking_error(col, bench, factor):
+    """Sample standard deviation of the active return, times ``factor``."""
+    if col.size < 2:
+        return np.nan
+    _, std = _active_return(col, bench)
+    return std * factor
+
+
+def _information_ratio(col, bench, factor):
+    """Mean active return over its standard deviation, times ``factor``."""
+    if col.size < 2:
+        return np.nan
+    active, std = _active_return(col, bench)
+    if std == 0:  # 0 -> NaN, not inf
+        return np.nan
+    return np.mean(active) / std * factor
+
+
+def tracking_error(returns, benchmark, factor=None):
+    r"""Calculate the tracking error against ``benchmark``.
+
+    Standard deviation of the active return :math:`r_t - b_t`, the amount by
+    which the fund deviates from its benchmark [1]_ [2]_:
+
+    .. math::
+
+        TE = \sqrt{\frac{\sum_{t=1}^{N}
+                   \left( (r_t - b_t) - \overline{(r - b)} \right)^2}{N - 1}}
+
+    The deviation uses ``ddof=1`` and, for each column, only the rows where
+    the column and the benchmark are both non-NaN (pairwise complete). A
+    fund that moves exactly with its benchmark, ``r = b + c`` for a constant
+    ``c``, has a zero tracking error.
+
+    Parameters
+    ----------
+    returns : array-like
+        1D or 2D asset returns. Pandas objects are inner-joined with the
+        benchmark on their index, see :func:`quantkit.utils.align`.
+    benchmark : array-like
+        1D benchmark returns, usually the index the fund is measured against.
+    factor : float, optional
+        Multiplies the result. Annualizing a standard deviation requires the
+        caller to pass the square root of the number of periods in a year,
+        e.g. ``np.sqrt(BYEAR)`` for daily returns.
+
+    Returns
+    -------
+    tracking_error : float or array-like
+        Float for 1d input, one value per column for 2d input. NaN when
+        fewer than two complete rows are available.
+
+    Raises
+    ------
+    ValueError
+        If ``benchmark`` is not 1D or the numpy lengths differ.
+
+    References
+    ----------
+    .. [1] Morningstar, "Custom Calculation Data Points", Tracking Error:
+           the standard deviation of (P - B).
+           https://morningstardirect.morningstar.com/clientcomm/
+           CustomCalculationDataPoints.pdf
+    .. [2] https://en.wikipedia.org/wiki/Tracking_error
+
+    Examples
+    --------
+    >>> benchmark = np.array([0.01, 0.01, 0.02])
+    >>> tracking_error(np.array([0.02, 0.00, 0.05]), benchmark)
+    0.02
+
+    >>> tracking_error(benchmark + 0.01, benchmark)
+    0.0
+    """
+    if factor is None:
+        factor = 1
+
+    def _func(col, bench):
+        return _tracking_error(col, bench, factor)
+
+    return _reduce_pairwise(returns, benchmark, _func)
+
+
+def information_ratio(returns, benchmark, factor=None):
+    r"""Calculate the arithmetic information ratio against ``benchmark``.
+
+    Mean active return per unit of :func:`tracking_error` [1]_ [2]_:
+
+    .. math::
+
+        IR = \frac{\overline{(r - b)}}{\sigma_{r - b}}
+
+    Both moments are taken, for each column, over the rows where the column
+    and the benchmark are both non-NaN, and the deviation uses ``ddof=1``.
+    A fund that moves exactly with its benchmark has a zero tracking error,
+    so its ratio is undefined and comes out as NaN: a constant positive
+    active return is not an infinitely good result, it is a result the ratio
+    cannot rank.
+
+    Parameters
+    ----------
+    returns : array-like
+        1D or 2D asset returns. Pandas objects are inner-joined with the
+        benchmark on their index, see :func:`quantkit.utils.align`.
+    benchmark : array-like
+        1D benchmark returns, usually the index the fund is measured against.
+    factor : float, optional
+        Multiplies the result. Annualizing the ratio requires the caller to
+        pass the square root of the number of periods in a year, e.g.
+        ``np.sqrt(BYEAR)`` for daily returns, since annualizing a standard
+        deviation is what the square root does.
+
+    Returns
+    -------
+    information_ratio : float or array-like
+        Float for 1d input, one value per column for 2d input. NaN when the
+        tracking error is zero (zero denominator) or fewer than two complete
+        rows are available.
+
+    Raises
+    ------
+    ValueError
+        If ``benchmark`` is not 1D or the numpy lengths differ.
+
+    References
+    ----------
+    .. [1] Morningstar, "Custom Calculation Data Points", Information Ratio
+           (arithmetic).
+           https://morningstardirect.morningstar.com/clientcomm/
+           CustomCalculationDataPoints.pdf
+    .. [2] https://en.wikipedia.org/wiki/Information_ratio
+
+    Examples
+    --------
+    >>> benchmark = np.array([0.01, 0.01, 0.02])
+    >>> information_ratio(np.array([0.02, 0.00, 0.05]), benchmark)
+    0.5
+
+    >>> information_ratio(benchmark + 0.01, benchmark)
+    nan
+    """
+    if factor is None:
+        factor = 1
+
+    def _func(col, bench):
+        return _information_ratio(col, bench, factor)
+
+    return _reduce_pairwise(returns, benchmark, _func)
