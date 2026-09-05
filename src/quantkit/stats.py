@@ -1093,3 +1093,394 @@ def sortino_ratio(returns, mar=0.0, factor=None):
            Sortino__A__Sharper__Ratio_Red_Rock_Capital.pdf
     """
     return kappa(returns, mar=mar, order=2, factor=factor)
+
+
+# ---------------------------------------------------------------------------
+# maximum drawdown details: peak, valley, recovery, durations and Morningstar's
+# average drawdown. Everything is computed column by column on 1D arrays.
+
+_PEAK, _VALLEY, _RECOVERY = 0, 1, 2
+
+
+def _columns(arr):
+    """Return the columns of a 1D or 2D array as a list of 1D arrays."""
+    if arr.ndim == 1:
+        return [arr]
+    if arr.ndim == 2:
+        return [arr[:, col] for col in range(arr.shape[1])]
+    raise NotImplementedError
+
+
+def _reduce_columns(prices, values):
+    """Wrap one value per column of ``prices`` like ``reduce_array_wrap``."""
+    if prices.ndim == 1:
+        values = values[0]
+    return reduce_array_wrap(prices, values)
+
+
+def _apply_columns(prices, func, *args):
+    """Apply ``func(column, *args)`` to every column of ``prices``."""
+    arr = prices.__array__()
+    values = np.array([func(col, *args) for col in _columns(arr)], float)
+    return _reduce_columns(prices, values)
+
+
+def _max_drawdown_span(arr):
+    """Locate the maximum relative drawdown of a 1D array.
+
+    Parameters
+    ----------
+    arr : numpy.ndarray
+        1D prices. Leading NaN are skipped and internal NaN are missing
+        observations: the running maximum carries forward through them and
+        they are never chosen.
+
+    Returns
+    -------
+    peak, valley, recovery : int
+        Positions of the running maximum in force at the valley (its last
+        touch before the valley), of the minimum drawdown (the first one on
+        ties) and of the first price at or above the peak after the valley.
+        ``recovery`` is -1 when the price never recovers and all three are
+        -1 when the price never falls below a previous high.
+    """
+    dd = expanding.drawdown(arr, relative=True).__array__()
+    if np.all(np.isnan(dd)) or np.nanmin(dd) >= 0:
+        return -1, -1, -1
+
+    valley = int(np.nanargmin(dd))
+    peak = int(np.flatnonzero(dd[: valley + 1] == 0)[-1])
+    after_valley = valley + 1
+    recovered = np.flatnonzero(arr[after_valley:] >= arr[peak])
+    recovery = int(after_valley + recovered[0]) if recovered.size else -1
+    return peak, valley, recovery
+
+
+def _max_drawdown_label(prices, item):
+    """Report one item of ``_max_drawdown_span`` per column.
+
+    numpy input keeps the positions as floats so NaN can mean "none"; pandas
+    input maps them to the index labels, missing (NaT or NaN) when none.
+    """
+    arr = prices.__array__()
+    positions = np.array(
+        [_max_drawdown_span(col)[item] for col in _columns(arr)], int
+    )
+    missing = positions < 0
+
+    if isinstance(prices, np.ndarray):
+        out = np.where(missing, np.nan, positions)
+    elif prices.index.size == 0:
+        out = np.full(positions.shape, np.nan)
+    else:
+        out = prices.index[np.maximum(positions, 0)].where(~missing)
+
+    return _reduce_columns(prices, out)
+
+
+def _max_drawdown_duration(arr):
+    """Periods from peak to valley; 0 without drawdown, NaN without data."""
+    if np.all(np.isnan(arr)):
+        return np.nan
+    peak, valley, _ = _max_drawdown_span(arr)
+    return valley - peak if peak >= 0 else 0
+
+
+def _max_drawdown_recovery_duration(arr):
+    """Periods from valley to recovery; NaN when there is none."""
+    _, valley, recovery = _max_drawdown_span(arr)
+    return recovery - valley if recovery >= 0 else np.nan
+
+
+def _longest_drawdown_duration(arr):
+    """Longest run of valid observations strictly below the running max."""
+    dd = expanding.drawdown(arr, relative=True).__array__()
+    under_water = dd[~np.isnan(dd)] < 0
+    if under_water.size == 0:
+        return np.nan
+
+    longest = run = 0
+    for is_under in under_water:
+        run = run + 1 if is_under else 0
+        longest = max(longest, run)
+    return longest
+
+
+def _average_drawdown(arr, periods_per_year):
+    """Morningstar's average drawdown of a 1D array."""
+    valid = arr[~np.isnan(arr)]
+    n_valid = valid.size
+    if n_valid == 0:
+        return np.nan
+
+    edges = range(0, n_valid + periods_per_year, periods_per_year)
+    blocks = [valid[start:stop] for start, stop in zip(edges, edges[1:])]
+    mdd_sum = sum(max_drawdown(block) for block in blocks)
+    return mdd_sum / (n_valid / periods_per_year)
+
+
+def max_drawdown_peak(prices):
+    """Locate the peak the maximum drawdown fell from.
+
+    The peak is the last time the price stood at the running maximum in
+    force at the valley of the maximum drawdown, see :func:`max_drawdown`.
+
+    Parameters
+    ----------
+    prices : array-like
+        Prices data.
+
+    Returns
+    -------
+    out : float, label or array-like
+        For numpy input the position as a float (NaN without drawdown), for
+        pandas input the index label (missing without drawdown). Reduced
+        column-wise: a Series indexed by the columns for a DataFrame.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> max_drawdown_peak(np.array([10, 8, 6, 9, 10, 7]))
+    0.0
+
+    >>> max_drawdown_peak(np.array([1, 2, 3]))
+    nan
+
+    References
+    ----------
+    .. [1] https://en.wikipedia.org/wiki/Drawdown_(economics)
+    .. [2] Enrico Schumann - Computing Drawdown Statistics
+       http://comisef.wikidot.com/tutorial:drawdowns
+    """
+    return _max_drawdown_label(prices, _PEAK)
+
+
+def max_drawdown_valley(prices):
+    """Locate the valley (trough) of the maximum drawdown.
+
+    The valley is the first time the relative drawdown reaches its minimum,
+    see :func:`max_drawdown`.
+
+    Parameters
+    ----------
+    prices : array-like
+        Prices data.
+
+    Returns
+    -------
+    out : float, label or array-like
+        For numpy input the position as a float (NaN without drawdown), for
+        pandas input the index label (missing without drawdown). Reduced
+        column-wise: a Series indexed by the columns for a DataFrame.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> max_drawdown_valley(np.array([10, 8, 6, 9, 10, 7]))
+    2.0
+
+    >>> import pandas as pd
+    >>> index = pd.date_range("2020-01-01", periods=6)
+    >>> max_drawdown_valley(pd.Series([10, 8, 6, 9, 10, 7], index=index))
+    Timestamp('2020-01-03 00:00:00')
+
+    References
+    ----------
+    .. [1] https://en.wikipedia.org/wiki/Drawdown_(economics)
+    .. [2] Enrico Schumann - Computing Drawdown Statistics
+       http://comisef.wikidot.com/tutorial:drawdowns
+    """
+    return _max_drawdown_label(prices, _VALLEY)
+
+
+def max_drawdown_recovery(prices):
+    """Locate the recovery from the maximum drawdown.
+
+    The recovery is the first time after the valley the price is back at or
+    above the peak price, see :func:`max_drawdown_peak`.
+
+    Parameters
+    ----------
+    prices : array-like
+        Prices data.
+
+    Returns
+    -------
+    out : float, label or array-like
+        For numpy input the position as a float, for pandas input the index
+        label. NaN (missing) when the price never recovers or there is no
+        drawdown. Reduced column-wise: a Series indexed by the columns for a
+        DataFrame.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> max_drawdown_recovery(np.array([10, 8, 6, 9, 10, 7]))
+    4.0
+
+    >>> max_drawdown_recovery(np.array([10, 8, 6, 9]))
+    nan
+
+    References
+    ----------
+    .. [1] https://en.wikipedia.org/wiki/Drawdown_(economics)
+    .. [2] Enrico Schumann - Computing Drawdown Statistics
+       http://comisef.wikidot.com/tutorial:drawdowns
+    """
+    return _max_drawdown_label(prices, _RECOVERY)
+
+
+def max_drawdown_duration(prices):
+    """Calculate the duration of the maximum drawdown.
+
+    Number of periods from the peak to the valley of the maximum drawdown,
+    see :func:`max_drawdown_peak` and :func:`max_drawdown_valley`.
+
+    Parameters
+    ----------
+    prices : array-like
+        Prices data.
+
+    Returns
+    -------
+    out : float or array-like
+        Periods from peak to valley, 0 when the price never falls below a
+        previous high and NaN without valid observations.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> max_drawdown_duration(np.array([10, 8, 6, 9, 10, 7]))
+    2.0
+
+    >>> max_drawdown_duration(np.array([1, 2, 3]))
+    0.0
+
+    References
+    ----------
+    .. [1] Bacon, C. Practical Portfolio Performance Measurement and
+       Attribution. Wiley. 2004.
+    .. [2] https://en.wikipedia.org/wiki/Drawdown_(economics)
+    """
+    return _apply_columns(prices, _max_drawdown_duration)
+
+
+def max_drawdown_recovery_duration(prices):
+    """Calculate the recovery time of the maximum drawdown.
+
+    Number of periods from the valley of the maximum drawdown to its
+    recovery, see :func:`max_drawdown_recovery`.
+
+    Parameters
+    ----------
+    prices : array-like
+        Prices data.
+
+    Returns
+    -------
+    out : float or array-like
+        Periods from valley to recovery. NaN when the price never recovers
+        or there is no drawdown.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> max_drawdown_recovery_duration(np.array([10, 8, 6, 9, 10, 7]))
+    2.0
+
+    >>> max_drawdown_recovery_duration(np.array([10, 8, 6, 9]))
+    nan
+
+    References
+    ----------
+    .. [1] Bacon, C. Practical Portfolio Performance Measurement and
+       Attribution. Wiley. 2004.
+    .. [2] https://en.wikipedia.org/wiki/Drawdown_(economics)
+    """
+    return _apply_columns(prices, _max_drawdown_recovery_duration)
+
+
+def longest_drawdown_duration(prices):
+    """Calculate the longest time under water.
+
+    Longest number of consecutive periods with the price strictly below its
+    running maximum. It need not be the deepest drawdown. A stretch still
+    open at the end of the series counts and internal NaN are ignored: they
+    neither break nor extend a stretch.
+
+    Parameters
+    ----------
+    prices : array-like
+        Prices data.
+
+    Returns
+    -------
+    out : float or array-like
+        Longest number of periods under water, 0 when the price never falls
+        below a previous high and NaN without valid observations.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> longest_drawdown_duration(np.array([10, 9, 9, 9, 10, 2, 10]))
+    3.0
+
+    >>> longest_drawdown_duration(np.array([1, 2, 3]))
+    0.0
+
+    References
+    ----------
+    .. [1] Bacon, C. Practical Portfolio Performance Measurement and
+       Attribution. Wiley. 2004.
+    .. [2] https://en.wikipedia.org/wiki/Drawdown_(economics)
+    """
+    return _apply_columns(prices, _longest_drawdown_duration)
+
+
+def average_drawdown(prices, periods_per_year=BYEAR):
+    r"""Calculate Morningstar's Average Drawdown.
+
+    The valid observations are split into consecutive blocks of
+    ``periods_per_year`` observations, the maximum relative drawdown of each
+    block is computed independently (every block starts its own running
+    maximum) and the sum is spread over the number of years covered:
+
+    .. math::
+
+        AvgDD = \frac{\sum_{t=1}^{n} MDD_{t}}{N / \text{periods\_per\_year}}
+
+    where :math:`N` is the number of valid observations, so a partial last
+    block is weighted by its length [1]_. This is the downside risk measure
+    of the Sterling ratio. Drawdowns are negative in this library, so the
+    result is negative or zero.
+
+    Parameters
+    ----------
+    prices : array-like
+        Prices data.
+    periods_per_year : int, optional
+        Observations per block (year).
+
+    Returns
+    -------
+    out : float or array-like
+        Average drawdown, 0 when the price never falls below a previous high
+        and NaN without valid observations.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> prices = np.array([10, 8, 6, 9, 10, 7])
+    >>> average_drawdown(prices, periods_per_year=3)  # (-0.4 - 0.3) / 2
+    -0.35
+
+    >>> average_drawdown(prices, periods_per_year=6)  # one block
+    -0.4
+
+    References
+    ----------
+    .. [1] Morningstar - Custom Calculation Data Points, Average Drawdown
+       https://morningstardirect.morningstar.com/clientcomm/
+       customcalculations.pdf
+    """
+    return _apply_columns(prices, _average_drawdown, periods_per_year)
