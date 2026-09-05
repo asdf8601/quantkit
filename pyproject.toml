@@ -52,5 +52,10 @@ ignore = ["D100", "D202"]
 [tool.ruff.lint.pydocstyle]
 convention = "numpy"
 
+[tool.ty.src]
+# Same scope as ruff: the library only. Test code exercises pandas
+# signatures that its inline typing does not model well.
+include = ["src"]
+
 [tool.ty.environment]
 python-version = "3.10"

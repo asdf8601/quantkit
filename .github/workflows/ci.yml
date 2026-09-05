@@ -42,8 +42,7 @@ jobs:
       - uses: astral-sh/setup-uv@v10.0.1
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      # ty also checks tests/, so it needs the test dependencies importable.
-      - run: uv sync --locked --no-default-groups --group lint --group test
+      - run: uv sync --locked --no-default-groups --group lint
       - run: uv run ruff check
       - run: uv run ruff format --check
       - run: uv run ty check

@@ -34,7 +34,7 @@ uv run ruff format --check                    # drop --check to reformat
 uv run ty check
 ```
 
-Ruff config is in `pyproject.toml`: line length 79, numpy docstring convention, rules E/F/W/I/D. `tests/` and `docs/` are excluded from ruff, matching the old flake8 scope, but ty checks the whole tree including tests.
+Ruff config is in `pyproject.toml`: line length 79, numpy docstring convention, rules E/F/W/I/D. Both ruff and ty are scoped to `src/`, matching the old flake8 scope; `tests/` and `docs/` are not linted or type-checked.
 
 Docs (Sphinx + autoapi over `src/`; published to GitHub Pages on release):
 
