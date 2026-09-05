@@ -167,7 +167,7 @@ def align(returns, benchmark):
             f"benchmark must be 1D, got {benchmark.ndim} dimensions"
         )
 
-    is_pandas = isinstance(returns, pd.core.generic.NDFrame)
+    is_pandas = isinstance(returns, (pd.Series, pd.DataFrame))
     if is_pandas and isinstance(benchmark, pd.Series):
         returns, benchmark = returns.align(benchmark, join="inner", axis=0)
     elif len(returns) != len(benchmark):
