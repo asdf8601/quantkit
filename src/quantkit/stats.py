@@ -11,6 +11,8 @@ WHERE:
     x_t : time series
     y : float
 """
+import warnings
+
 from quantkit import expanding
 from quantkit.utils import first_valid_index, last_valid_index
 from quantkit.decorators import reduce_array_wrap
@@ -289,3 +291,78 @@ def sharpe_ratio(
     sigma = np.nanstd(ret_excess)
 
     return (e_ret_excess / sigma) * factor
+
+
+def value_at_risk(returns, confidence=0.95):
+    r"""Calculate the historical value at risk (VaR).
+
+    The historical VaR at confidence level :math:`c` is the empirical
+    :math:`(1 - c)` quantile of the returns, i.e. the return that is only
+    undercut with probability :math:`1 - c` in the sample:
+
+    .. math::
+
+        \text{VaR}_{c} = Q_{1 - c}(r_t)
+
+    The quantile is computed with numpy's default linear interpolation
+    between order statistics, ignoring NaN.
+
+    The sign of the return is kept, so a loss is a NEGATIVE number, the same
+    convention as :func:`drawdown`. Morningstar (and most risk reports)
+    quote VaR as a positive loss; negate the output if that convention is
+    needed.
+
+    Parameters
+    ----------
+    returns : array-like
+        Asset return series.
+    confidence : float, optional
+        Confidence level, strictly between 0 and 1. The default 0.95 gives
+        the 5th percentile of the returns.
+
+    Returns
+    -------
+    out : float or array-like
+        Value at risk of each column. NaN for a column without valid
+        observations.
+
+    Raises
+    ------
+    ValueError
+        If ``confidence`` is not in the open interval (0, 1).
+
+    References
+    ----------
+    .. [1]: https://en.wikipedia.org/wiki/Value_at_risk
+    .. [2]: Jorion, P. (2006). Value at Risk: The New Benchmark for Managing
+            Financial Risk. McGraw-Hill.
+
+    Examples
+    --------
+    >>> returns = np.array([-0.05, -0.02, 0.0, 0.01, 0.03])
+    >>> value_at_risk(returns, confidence=0.75)
+    -0.02
+
+    >>> returns = pd.DataFrame({"a": returns, "b": returns + 0.1})
+    >>> value_at_risk(returns, confidence=0.75)
+    a   -0.02
+    b    0.08
+    dtype: float64
+    """
+    if not 0 < confidence < 1:
+        raise ValueError(
+            f"confidence must be in the open interval (0, 1): {confidence}"
+        )
+
+    arr = returns.__array__()
+    percentile = (1 - confidence) * 100
+
+    with warnings.catch_warnings():
+        # nanpercentile warns on empty and all-NaN columns; NaN is the
+        # documented result there, so the warning is noise
+        warnings.simplefilter("ignore", RuntimeWarning)
+        var = np.nanpercentile(arr, percentile, axis=0)
+
+    out = reduce_array_wrap(returns, var)
+
+    return out
