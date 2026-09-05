@@ -15,6 +15,7 @@ from quantkit import expanding
 from quantkit.utils import first_valid_index, last_valid_index
 from quantkit.decorators import reduce_array_wrap
 from quantkit.conventions import ArrayLike, BYEAR
+from quantkit.core import cum_returns
 
 import numpy as np
 
@@ -289,3 +290,135 @@ def sharpe_ratio(
     sigma = np.nanstd(ret_excess)
 
     return (e_ret_excess / sigma) * factor
+
+
+def annualized_return(returns, periods_per_year=BYEAR):
+    r"""Calculate the geometric annualized return.
+
+    Compounds the returns of the whole period and rescales the result to a
+    one year basis, so that series of different lengths are comparable:
+
+    .. math::
+
+        R_{\text{annual}} = \left( \prod_{t=1}^{n} (1 + r_t) \right)
+            ^{\frac{P}{n}} - 1
+
+    where :math:`P` is ``periods_per_year`` and :math:`n` is the number of
+    non-NaN returns of each column. NaN values are dropped from both the
+    product and the count.
+
+    Parameters
+    ----------
+    returns : array-like
+        Arithmetic returns series, 1-d or 2-d (columns are reduced
+        independently).
+    periods_per_year : float, optional
+        Number of returns that make up a year, ``BYEAR`` (business days) by
+        default. Use 12 for monthly and 52 for weekly returns.
+
+    Returns
+    -------
+    out : float or 1d-reduced-array
+        Annualized return of each column. NaN when a column has no valid
+        return.
+
+    References
+    ----------
+    .. [1]: https://en.wikipedia.org/wiki/Rate_of_return#Annualization
+
+    Examples
+    --------
+    Doubling twice over two years annualizes to +100%.
+
+    >>> annualized_return(np.array([1.0, 1.0]), periods_per_year=1)
+    1.0
+
+    Doubling in half a year annualizes to +300%.
+
+    >>> annualized_return(np.array([1.0]), periods_per_year=2)
+    3.0
+    """
+    arr = returns.__array__()
+    n = np.sum(~np.isnan(arr), axis=0)
+    growth = np.nanprod(1 + arr, axis=0)
+
+    with np.errstate(divide="ignore", invalid="ignore"):
+        # periods_per_year / n is inf where n == 0; masked right after
+        out = np.where(n == 0, np.nan, growth ** (periods_per_year / n) - 1)
+
+    if out.ndim == 0:
+        out = out[()]
+
+    return reduce_array_wrap(returns, out)
+
+
+def calmar_ratio(returns, periods_per_year=BYEAR):
+    r"""Calculate the Calmar ratio.
+
+    Return earned per unit of maximum drawdown suffered: the annualized
+    return divided by the absolute maximum drawdown of the price path
+    implied by ``returns``, starting from a capital of 1 [1]_.
+
+    .. math::
+
+        \text{Calmar} = \frac{R_{\text{annual}}}{|MD|}
+
+    The price path is ``cum_returns(returns, first_price=1)`` preceded by
+    the starting capital itself, so a loss on the very first return counts
+    as a drawdown. Morningstar computes the ratio over the trailing 36
+    months; here the caller chooses the window by slicing ``returns``
+    before calling.
+
+    Parameters
+    ----------
+    returns : array-like
+        Arithmetic returns series, 1-d or 2-d (columns are reduced
+        independently).
+    periods_per_year : float, optional
+        Number of returns that make up a year, passed to
+        :func:`annualized_return`. ``BYEAR`` (business days) by default.
+
+    Returns
+    -------
+    out : float or 1d-reduced-array
+        Calmar ratio of each column. NaN when there is no drawdown to
+        divide by or no valid return.
+
+    References
+    ----------
+    .. [1]: https://en.wikipedia.org/wiki/Calmar_ratio
+    .. [2]: Young, T. W. (1991). Calmar Ratio: A Smoother Tool. Futures,
+            20(1), 40.
+
+    Examples
+    --------
+    Halve the capital, then quadruple it: the year ends +100% after a 50%
+    drawdown.
+
+    >>> calmar_ratio(np.array([-0.5, 3.0]), periods_per_year=2)
+    2.0
+
+    Without a drawdown the ratio is undefined.
+
+    >>> calmar_ratio(np.array([0.1, 0.2]), periods_per_year=2)
+    nan
+    """
+    arr = returns.__array__()
+    ann_ret = annualized_return(arr, periods_per_year=periods_per_year)
+    ann_ret = np.asarray(ann_ret, dtype=float)
+
+    # start the price path at the initial capital so that a loss on the first
+    # return is a drawdown too
+    prices = cum_returns(arr, first_price=1)
+    start = np.ones((1,) + arr.shape[1:])
+    prices = np.concatenate([start, prices], axis=0)
+    mdd = max_drawdown(prices, relative=True)
+    mdd = np.abs(np.asarray(mdd, dtype=float))
+
+    with np.errstate(divide="ignore", invalid="ignore"):
+        out = np.where(mdd == 0, np.nan, ann_ret / mdd)
+
+    if out.ndim == 0:
+        out = out[()]
+
+    return reduce_array_wrap(returns, out)

@@ -46,10 +46,11 @@ def test_annualized_return_single_return_with_one_period_per_year_is_itself():
 
 
 def test_annualized_return_defaults_to_business_year():
-    # BYEAR = 261 business days: 1.21 ** (261 / 2) - 1
-    returns = np.array([0.1, 0.1])
+    # BYEAR = 261 business days: 1.001 * 1.001 = 1.002001
+    # 1.002001 ** (261 / 2) - 1 = 0.2981...; 252 days would give 0.2861...
+    returns = np.array([0.001, 0.001])
     obtained = stats.annualized_return(returns)
-    expected = 1.21 ** (BYEAR / 2) - 1
+    expected = 1.002001 ** (BYEAR / 2) - 1
     np.testing.assert_almost_equal(obtained, expected)
 
 
@@ -176,10 +177,13 @@ def test_calmar_ratio_annualizes_only_the_numerator():
 
 
 def test_calmar_ratio_defaults_to_business_year():
-    # (0.66 ** (261 / 3) - 1) / 0.5
-    returns = np.array([0.1, -0.5, 0.2])
+    # prices: 1 (start), 1.01, 0.9999, 1.009899
+    # max drawdown = 0.9999 / 1.01 - 1 = -0.01
+    # annualized: (1.01 * 0.99 * 1.01) ** (261 / 3) - 1 = 1.009899 ** 87 - 1
+    # calmar = 1.356... / 0.01 = 135.6...; 252 days would give 128.7...
+    returns = np.array([0.01, -0.01, 0.01])
     obtained = stats.calmar_ratio(returns)
-    expected = (0.66 ** (BYEAR / 3) - 1) / 0.5
+    expected = (1.009899 ** (BYEAR / 3) - 1) / 0.01
     np.testing.assert_almost_equal(obtained, expected)
 
 
