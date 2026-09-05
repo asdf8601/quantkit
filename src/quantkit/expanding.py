@@ -1,5 +1,6 @@
 """Financial statistics applied using an expanding window basis approach."""
 from quantkit import decorators
+from quantkit.utils import array_wrap
 import numpy as np
 
 
@@ -57,5 +58,5 @@ def drawdown(prices, relative=True, out=None):
     if relative:
         np.divide(out, cummax, out=out)
 
-    out = prices.__array_wrap__(out)
+    out = array_wrap(prices, out)
     return out
