@@ -11,12 +11,16 @@ WHERE:
     x_t : time series
     y : float
 """
-from quantkit import expanding
-from quantkit.utils import first_valid_index, last_valid_index
-from quantkit.decorators import reduce_array_wrap
-from quantkit.conventions import ArrayLike, BYEAR
+
+import warnings
 
 import numpy as np
+
+from quantkit import expanding
+from quantkit.conventions import BYEAR, ArrayLike
+from quantkit.core import cum_returns
+from quantkit.decorators import reduce_array_wrap
+from quantkit.utils import first_valid_index, last_valid_index
 
 
 def total_returns(prices, factor=None, relative=True):
@@ -252,7 +256,9 @@ def max_drawdown(prices, relative=True):
 
 
 def sharpe_ratio(
-    returns: ArrayLike, risk_free: float, factor: float = np.sqrt(BYEAR)
+    returns: ArrayLike,
+    risk_free: float | ArrayLike,
+    factor: float = np.sqrt(BYEAR),
 ):
     """Calculate shape ratio.
 
@@ -289,6 +295,271 @@ def sharpe_ratio(
     sigma = np.nanstd(ret_excess)
 
     return (e_ret_excess / sigma) * factor
+
+
+def value_at_risk(returns, confidence=0.95):
+    r"""Calculate the historical value at risk (VaR).
+
+    The historical VaR at confidence level :math:`c` is the empirical
+    :math:`(1 - c)` quantile of the returns, i.e. the return that is only
+    undercut with probability :math:`1 - c` in the sample:
+
+    .. math::
+
+        \text{VaR}_{c} = Q_{1 - c}(r_t)
+
+    The quantile is computed with numpy's default linear interpolation
+    between order statistics, ignoring NaN.
+
+    The sign of the return is kept, so a loss is a NEGATIVE number, the same
+    convention as :func:`drawdown`. Morningstar (and most risk reports)
+    quote VaR as a positive loss; negate the output if that convention is
+    needed.
+
+    Parameters
+    ----------
+    returns : array-like
+        Asset return series.
+    confidence : float, optional
+        Confidence level, strictly between 0 and 1. The default 0.95 gives
+        the 5th percentile of the returns.
+
+    Returns
+    -------
+    out : float or array-like
+        Value at risk of each column. NaN for a column without valid
+        observations.
+
+    Raises
+    ------
+    ValueError
+        If ``confidence`` is not in the open interval (0, 1).
+
+    References
+    ----------
+    .. [1]: https://en.wikipedia.org/wiki/Value_at_risk
+    .. [2]: Jorion, P. (2006). Value at Risk: The New Benchmark for Managing
+            Financial Risk. McGraw-Hill.
+
+    Examples
+    --------
+    >>> returns = np.array([-0.05, -0.02, 0.0, 0.01, 0.03])
+    >>> value_at_risk(returns, confidence=0.75)
+    -0.02
+
+    >>> returns = pd.DataFrame({"a": returns, "b": returns + 0.1})
+    >>> value_at_risk(returns, confidence=0.75)
+    a   -0.02
+    b    0.08
+    dtype: float64
+    """
+    if not 0 < confidence < 1:
+        raise ValueError(
+            f"confidence must be in the open interval (0, 1): {confidence}"
+        )
+
+    arr = returns.__array__()
+    percentile = (1 - confidence) * 100
+
+    with warnings.catch_warnings():
+        # nanpercentile warns on empty and all-NaN columns; NaN is the
+        # documented result there, so the warning is noise
+        warnings.simplefilter("ignore", RuntimeWarning)
+        var = np.nanpercentile(arr, percentile, axis=0)
+
+    out = reduce_array_wrap(returns, var)
+
+    return out
+
+
+def max_drawup(prices, relative=True):
+    r"""Calculate the Maximum Drawup.
+
+    The drawup is the rise of the prices from their running minimum, the
+    mirror image of the drawdown:
+
+    .. math::
+
+        U_{t} = S_{t} - \min_{u \in [0, t]}(S_{u})
+
+    "Max drawup" is the largest drawup value observed in the given time
+    series for the whole period.
+
+    .. math::
+
+        MU_{T} = \max_{t \in [0, T]} ( S_{t} - \min_{u \in [0, t]}(S_{u}) )
+
+    Parameters
+    ----------
+    prices : array-like
+        Series on which the drawup is to be calculated.
+    relative : bool, optional
+        Passing True makes the drawup relative (in parts per unit) to the
+        running minimum.
+
+    Returns
+    -------
+    out : float or array-like
+        Maximum Drawup value. NaN when there is no valid observation.
+
+    References
+    ----------
+    .. [1] Jan Vecer - Maximum Drawdown and Directional Trading, Risk 19(12),
+       2006. Maximum drawdown and maximum drawup are studied as a pair.
+       http://www.stat.columbia.edu/~vecer/maxdrawdown3.pdf
+
+    Examples
+    --------
+    >>> prices = np.array([4, 2, 3, 6])
+    >>> max_drawup(prices, relative=False)
+    4.0
+
+    >>> max_drawup(prices)
+    2.0
+    """
+    du = expanding.drawup(prices, relative=relative)
+    arr = du.__array__()
+
+    if arr.shape[0] == 0:
+        # no observations: nanmax would raise, return NaN instead
+        out = np.full(arr.shape[1:], np.nan)
+    else:
+        out = np.nanmax(arr, axis=0)
+
+    out = reduce_array_wrap(prices, out)
+    return out
+
+
+def annualized_return(returns, periods_per_year=BYEAR):
+    r"""Calculate the geometric annualized return.
+
+    Compounds the returns of the whole period and rescales the result to a
+    one year basis, so that series of different lengths are comparable:
+
+    .. math::
+
+        R_{\text{annual}} = \left( \prod_{t=1}^{n} (1 + r_t) \right)
+            ^{\frac{P}{n}} - 1
+
+    where :math:`P` is ``periods_per_year`` and :math:`n` is the number of
+    non-NaN returns of each column. NaN values are dropped from both the
+    product and the count.
+
+    Parameters
+    ----------
+    returns : array-like
+        Arithmetic returns series, 1-d or 2-d (columns are reduced
+        independently).
+    periods_per_year : float, optional
+        Number of returns that make up a year, ``BYEAR`` (business days) by
+        default. Use 12 for monthly and 52 for weekly returns.
+
+    Returns
+    -------
+    out : float or 1d-reduced-array
+        Annualized return of each column. NaN when a column has no valid
+        return.
+
+    References
+    ----------
+    .. [1]: https://en.wikipedia.org/wiki/Rate_of_return#Annualization
+
+    Examples
+    --------
+    Doubling twice over two years annualizes to +100%.
+
+    >>> annualized_return(np.array([1.0, 1.0]), periods_per_year=1)
+    1.0
+
+    Doubling in half a year annualizes to +300%.
+
+    >>> annualized_return(np.array([1.0]), periods_per_year=2)
+    3.0
+    """
+    arr = returns.__array__()
+    n = np.sum(~np.isnan(arr), axis=0)
+    growth = np.nanprod(1 + arr, axis=0)
+
+    with np.errstate(divide="ignore", invalid="ignore"):
+        # periods_per_year / n is inf where n == 0; masked right after
+        out = np.where(n == 0, np.nan, growth ** (periods_per_year / n) - 1)
+
+    if out.ndim == 0:
+        out = out[()]
+
+    return reduce_array_wrap(returns, out)
+
+
+def calmar_ratio(returns, periods_per_year=BYEAR):
+    r"""Calculate the Calmar ratio.
+
+    Return earned per unit of maximum drawdown suffered: the annualized
+    return divided by the absolute maximum drawdown of the price path
+    implied by ``returns``, starting from a capital of 1 [1]_.
+
+    .. math::
+
+        \text{Calmar} = \frac{R_{\text{annual}}}{|MD|}
+
+    The price path is ``cum_returns(returns, first_price=1)`` preceded by
+    the starting capital itself, so a loss on the very first return counts
+    as a drawdown. Morningstar computes the ratio over the trailing 36
+    months; here the caller chooses the window by slicing ``returns``
+    before calling.
+
+    Parameters
+    ----------
+    returns : array-like
+        Arithmetic returns series, 1-d or 2-d (columns are reduced
+        independently).
+    periods_per_year : float, optional
+        Number of returns that make up a year, passed to
+        :func:`annualized_return`. ``BYEAR`` (business days) by default.
+
+    Returns
+    -------
+    out : float or 1d-reduced-array
+        Calmar ratio of each column. NaN when there is no drawdown to
+        divide by or no valid return.
+
+    References
+    ----------
+    .. [1]: https://en.wikipedia.org/wiki/Calmar_ratio
+    .. [2]: Young, T. W. (1991). Calmar Ratio: A Smoother Tool. Futures,
+            20(1), 40.
+
+    Examples
+    --------
+    Halve the capital, then quadruple it: the year ends +100% after a 50%
+    drawdown.
+
+    >>> calmar_ratio(np.array([-0.5, 3.0]), periods_per_year=2)
+    2.0
+
+    Without a drawdown the ratio is undefined.
+
+    >>> calmar_ratio(np.array([0.1, 0.2]), periods_per_year=2)
+    nan
+    """
+    arr = returns.__array__()
+    ann_ret = annualized_return(arr, periods_per_year=periods_per_year)
+    ann_ret = np.asarray(ann_ret, dtype=float)
+
+    # start the price path at the initial capital so that a loss on the first
+    # return is a drawdown too
+    prices = cum_returns(arr, first_price=1)
+    start = np.ones((1,) + arr.shape[1:])
+    prices = np.concatenate([start, prices], axis=0)
+    mdd = max_drawdown(prices, relative=True)
+    mdd = np.abs(np.asarray(mdd, dtype=float))
+
+    with np.errstate(divide="ignore", invalid="ignore"):
+        out = np.where(mdd == 0, np.nan, ann_ret / mdd)
+
+    if out.ndim == 0:
+        out = out[()]
+
+    return reduce_array_wrap(returns, out)
 
 
 def _nan_divide(numerator, denominator):
