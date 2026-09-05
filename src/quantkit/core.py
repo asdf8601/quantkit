@@ -1,4 +1,5 @@
 """Core module contains common functions to perform finance analysis."""
+
 import numpy as np
 
 from quantkit.utils import array_wrap
