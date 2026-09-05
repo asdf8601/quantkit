@@ -346,8 +346,9 @@ def _max_drawdown_span(arr):
 
     valley = int(np.nanargmin(dd))
     peak = int(np.flatnonzero(dd[: valley + 1] == 0)[-1])
-    recovered = np.flatnonzero(arr[valley + 1:] >= arr[peak])
-    recovery = int(valley + 1 + recovered[0]) if recovered.size else -1
+    after_valley = valley + 1
+    recovered = np.flatnonzero(arr[after_valley:] >= arr[peak])
+    recovery = int(after_valley + recovered[0]) if recovered.size else -1
     return peak, valley, recovery
 
 
@@ -408,8 +409,8 @@ def _average_drawdown(arr, periods_per_year):
     if n_valid == 0:
         return np.nan
 
-    starts = range(0, n_valid, periods_per_year)
-    blocks = [valid[start:start + periods_per_year] for start in starts]
+    edges = range(0, n_valid + periods_per_year, periods_per_year)
+    blocks = [valid[start:stop] for start, stop in zip(edges, edges[1:])]
     mdd_sum = sum(max_drawdown(block) for block in blocks)
     return mdd_sum / (n_valid / periods_per_year)
 
