@@ -1828,38 +1828,36 @@ def bear_beta(returns, benchmark):
 
 
 def _active_return(col, bench):
-    """Active return ``col - bench`` and the noise floor of its spread.
+    """Active return ``col - bench`` and its standard deviation, ``ddof=1``.
 
     A fund that moves exactly with its benchmark has a constant active
     return, yet subtracting two series of rounded decimals leaves a spread
     of a few ulp around that constant, so an exact equality test does not
-    recognise it. Anything below the returned tolerance, which scales with
-    the magnitude of the inputs, is that rounding noise rather than real
-    dispersion.
+    recognise it. A deviation below the rounding noise of the inputs is
+    reported as exactly zero rather than as dispersion. ``col`` must hold at
+    least two observations.
     """
     active = col - bench
-    if active.size == 0:
-        return active, 0.0
-    scale = max(np.max(np.abs(col)), np.max(np.abs(bench)))
-    return active, 4 * np.finfo(float).eps * scale
+    std = np.std(active, ddof=1)
+    scale = max(np.abs(col).max(), np.abs(bench).max())
+    tol = 4 * np.finfo(float).eps * scale
+    return active, 0.0 if std <= tol else std
 
 
 def _tracking_error(col, bench, factor):
     """Sample standard deviation of the active return, times ``factor``."""
     if col.size < 2:
         return np.nan
-    active, tol = _active_return(col, bench)
-    std = np.std(active, ddof=1)
-    return (0.0 if std <= tol else std) * factor
+    _, std = _active_return(col, bench)
+    return std * factor
 
 
 def _information_ratio(col, bench, factor):
     """Mean active return over its standard deviation, times ``factor``."""
     if col.size < 2:
         return np.nan
-    active, tol = _active_return(col, bench)
-    std = np.std(active, ddof=1)
-    if std <= tol:  # 0 -> NaN, not inf
+    active, std = _active_return(col, bench)
+    if std == 0:  # 0 -> NaN, not inf
         return np.nan
     return np.mean(active) / std * factor
 
