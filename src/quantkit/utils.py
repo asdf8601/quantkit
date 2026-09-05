@@ -1,4 +1,5 @@
 """Module of utilities."""
+
 import numpy as np
 import pandas as pd
 
@@ -27,11 +28,10 @@ def first_valid_index(array):
         out = pd.Series(array).first_valid_index()
     elif ndim == 2:
         out = pd.DataFrame(array).apply(lambda col: col.first_valid_index())
+        if isinstance(array, np.ndarray):
+            out = out.values
     else:
         raise NotImplementedError
-
-    if isinstance(array, np.ndarray) and (ndim == 2):
-        out = out.values
 
     return out
 
@@ -60,11 +60,10 @@ def last_valid_index(array):
         out = pd.Series(array).last_valid_index()
     elif ndim == 2:
         out = pd.DataFrame(array).apply(lambda col: col.last_valid_index())
+        if isinstance(array, np.ndarray):
+            out = out.values
     else:
         raise NotImplementedError
-
-    if isinstance(array, np.ndarray) and (ndim == 2):
-        out = out.values
 
     return out
 
@@ -91,7 +90,7 @@ def iloc(obj, idx):
         If `obj` is not a pandas or numpy object handled by this function.
     """
 
-    if isinstance(obj, pd.core.generic.NDFrame):
+    if isinstance(obj, (pd.Series, pd.DataFrame)):
         out = obj.iloc[idx]
         out.name = None
     elif isinstance(obj, np.ndarray):

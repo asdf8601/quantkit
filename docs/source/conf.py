@@ -25,10 +25,9 @@ author = 'mmngreco'
 # version = ''
 # The full version, including alpha/beta/rc tags
 # release = ''
-import os
-import re
+import importlib.metadata
 # The full version, including alpha/beta/rc tags.
-release = re.sub('^v', '', os.popen('git describe --tags').read().strip())
+release = importlib.metadata.version('quantkit')
 # The short X.Y version.
 version = release
 
