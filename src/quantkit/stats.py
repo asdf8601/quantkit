@@ -1821,3 +1821,101 @@ def bear_beta(returns, benchmark):
     0.5
     """
     return _reduce_pairwise(returns, benchmark, _bear_beta)
+
+
+def sterling_ratio(returns, periods_per_year=BYEAR, excess=0.10):
+    r"""Calculate Morningstar's Sterling ratio.
+
+    Return earned per unit of average drawdown, cushioned by an excess risk
+    figure of 10% [1]_. It is the annualized return divided by the absolute
+    average drawdown of the price path implied by ``returns`` plus
+    ``excess``:
+
+    .. math::
+
+        \text{Sterling} = \frac{R_{\text{annual}}}{|AvgDD| + \text{excess}}
+
+    The price path is the one :func:`calmar_ratio` uses,
+    ``cum_returns(returns, first_price=1)`` preceded by the starting capital
+    itself, so both ratios agree on what a drawdown is and a loss on the
+    very first return counts. That leading price is an observation like any
+    other, so ``n`` returns give ``n + 1`` prices and
+    :func:`average_drawdown` cuts its yearly blocks over those ``n + 1``
+    observations.
+
+    The default excess keeps the denominator positive, so the ratio is
+    defined even without a drawdown. With ``excess=0`` and a price path that
+    never falls the denominator is zero and the result is NaN; over a single
+    block, where the average drawdown is the maximum drawdown, that case
+    reproduces :func:`calmar_ratio`.
+
+    Parameters
+    ----------
+    returns : array-like
+        Arithmetic returns series, 1-d or 2-d (columns are reduced
+        independently).
+    periods_per_year : int, optional
+        Number of observations that make up a year, passed to
+        :func:`annualized_return` and to :func:`average_drawdown`, which
+        uses it as its block length. ``BYEAR`` (business days) by default.
+    excess : float, optional
+        Risk figure added to the absolute average drawdown, 0.10
+        (Morningstar's 10%) by default.
+
+    Returns
+    -------
+    out : float or 1d-reduced-array
+        Sterling ratio of each column. NaN when the denominator is zero or
+        the column has no valid return.
+
+    References
+    ----------
+    .. [1]: Morningstar, "Custom Calculation Data Points" (October 2016),
+            Sterling Ratio: the compounded annual return over the average
+            maximum drawdown minus 10%, taken in absolute value as a
+            positive risk figure.
+            https://morningstardirect.morningstar.com/clientcomm/
+            customcalculations.pdf
+    .. [2]: https://en.wikipedia.org/wiki/Sterling_ratio
+
+    Examples
+    --------
+    Losing half the capital in a period that is half a year long: the
+    annualized return is :math:`0.5^2 - 1 = -0.75` and the price path
+    ``[1, 0.5]`` is one full block with a drawdown of -0.5.
+
+    >>> sterling_ratio(np.array([-0.5]), periods_per_year=2, excess=0.0)
+    -1.5
+
+    The default excess softens the same denominator to 0.6.
+
+    >>> sterling_ratio(np.array([-0.5]), periods_per_year=2)
+    -1.25
+
+    Without a drawdown the excess is the whole denominator: the prices
+    ``[1, 1.25, 1.25]`` never fall, so 0.25 / 0.10 = 2.5.
+
+    >>> sterling_ratio(np.array([0.25, 0.0]), periods_per_year=2)
+    2.5
+
+    >>> sterling_ratio(np.array([0.25, 0.0]), periods_per_year=2, excess=0.0)
+    nan
+    """
+    arr = returns.__array__()
+    ann_ret = annualized_return(arr, periods_per_year=periods_per_year)
+    ann_ret = np.asarray(ann_ret, dtype=float)
+
+    # start the price path at the initial capital so that a loss on the first
+    # return is a drawdown too, exactly as calmar_ratio does
+    prices = cum_returns(arr, first_price=1)
+    start = np.ones((1,) + arr.shape[1:])
+    prices = np.concatenate([start, prices], axis=0)
+    avg_dd = average_drawdown(prices, periods_per_year=periods_per_year)
+    avg_dd = np.abs(np.asarray(avg_dd, dtype=float))
+
+    out = _nan_divide(ann_ret, avg_dd + excess)
+
+    if out.ndim == 0:
+        out = out[()]
+
+    return reduce_array_wrap(returns, out)
