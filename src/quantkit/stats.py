@@ -12,7 +12,7 @@ WHERE:
     y : float
 """
 from quantkit import expanding
-from quantkit.utils import first_valid_index, last_valid_index
+from quantkit.utils import first_valid_index, last_valid_index, align
 from quantkit.decorators import reduce_array_wrap
 from quantkit.conventions import ArrayLike, BYEAR
 
@@ -289,3 +289,340 @@ def sharpe_ratio(
     sigma = np.nanstd(ret_excess)
 
     return (e_ret_excess / sigma) * factor
+
+
+def _pairwise_complete(col, bench):
+    """Keep the rows where both ``col`` and ``bench`` are not NaN."""
+    mask = ~(np.isnan(col) | np.isnan(bench))
+    return col[mask], bench[mask]
+
+
+def _is_degenerate(arr):
+    """Tell whether a variance cannot be estimated from ``arr``.
+
+    Either fewer than two observations or all of them identical. The
+    identity test replaces ``var == 0`` because the variance of a constant
+    array can come out as a tiny positive number when its mean is rounded.
+    """
+    return arr.size < 2 or bool(np.all(arr == arr[0]))
+
+
+def _beta(col, bench):
+    """Slope of ``col`` on ``bench``: cov(col, bench) / var(bench).
+
+    Written as the ratio of the deviation sums so the ``n - 1`` cancels.
+    """
+    if _is_degenerate(bench):
+        return np.nan
+    dev_col = col - col.mean()
+    dev_bench = bench - bench.mean()
+    return np.dot(dev_col, dev_bench) / np.dot(dev_bench, dev_bench)
+
+
+def _alpha(col, bench, risk_free, factor):
+    """Jensen's alpha: mean(col - rf) - beta * mean(bench - rf)."""
+    beta_ = _beta(col, bench)
+    if np.isnan(beta_):
+        return np.nan
+    excess = np.mean(col - risk_free) - beta_ * np.mean(bench - risk_free)
+    return excess * factor
+
+
+def _correlation(col, bench):
+    """Pearson correlation, NaN when either side has no dispersion."""
+    if _is_degenerate(col) or _is_degenerate(bench):
+        return np.nan
+    dev_col = col - col.mean()
+    dev_bench = bench - bench.mean()
+    scale = np.sqrt(np.dot(dev_col, dev_col) * np.dot(dev_bench, dev_bench))
+    return np.dot(dev_col, dev_bench) / scale
+
+
+def _r_squared(col, bench):
+    """Square of the Pearson correlation."""
+    return _correlation(col, bench) ** 2
+
+
+def _bull_beta(col, bench):
+    """Beta on the rows where the benchmark went up."""
+    up = bench > 0
+    return _beta(col[up], bench[up])
+
+
+def _bear_beta(col, bench):
+    """Beta on the rows where the benchmark went down."""
+    down = bench < 0
+    return _beta(col[down], bench[down])
+
+
+def _reduce_pairwise(returns, benchmark, func):
+    """Apply ``func(col, bench)`` to every column on its complete rows.
+
+    ``returns`` and ``benchmark`` are aligned with
+    :func:`quantkit.utils.align`; each column then keeps only the rows where
+    both it and the benchmark are non-NaN before ``func`` reduces it to a
+    number. The result is wrapped like the original ``returns`` object.
+    """
+    arr_returns, arr_benchmark = align(returns, benchmark)
+    ndim = arr_returns.ndim
+
+    if ndim == 1:
+        res = func(*_pairwise_complete(arr_returns, arr_benchmark))
+    elif ndim == 2:
+        res = np.array(
+            [
+                func(*_pairwise_complete(col, arr_benchmark))
+                for col in arr_returns.T
+            ]
+        )
+    else:
+        raise NotImplementedError
+
+    return reduce_array_wrap(returns, res)
+
+
+def beta(returns, benchmark):
+    r"""Compute the beta of ``returns`` against ``benchmark``.
+
+    Beta is the slope of the linear regression of the asset returns on the
+    benchmark returns
+
+    .. math::
+
+        r_{i,t} = \alpha_i + \beta_i \cdot r_{b,t} + \epsilon_t
+
+    whose ordinary least squares solution is
+
+    .. math::
+
+        \beta_i = \frac{cov(r_i, r_b)}{var(r_b)}
+
+    Both moments use ``ddof=1`` and, for each column, only the rows where
+    the column and the benchmark are both non-NaN (pairwise complete).
+
+    Parameters
+    ----------
+    returns : array-like
+        1D or 2D asset returns. Pandas objects are inner-joined with the
+        benchmark on their index, see :func:`quantkit.utils.align`.
+    benchmark : array-like
+        1D benchmark returns, usually a market index.
+
+    Returns
+    -------
+    beta : float or array-like
+        One value per column of ``returns``. NaN when the benchmark has no
+        variance or fewer than two complete rows are available.
+
+    Raises
+    ------
+    ValueError
+        If ``benchmark`` is not 1D or the numpy lengths differ.
+
+    References
+    ----------
+    .. [1]: https://en.wikipedia.org/wiki/Beta_(finance)
+
+    Examples
+    --------
+    >>> benchmark = np.array([0.5, -0.25, 0.75, -0.5])
+    >>> beta(2 * benchmark + 0.125, benchmark)
+    2.0
+    """
+    return _reduce_pairwise(returns, benchmark, _beta)
+
+
+def alpha(returns, benchmark, risk_free=0.0, factor=None):
+    r"""Compute Jensen's alpha of ``returns`` against ``benchmark``.
+
+    .. math::
+
+        \alpha_i = \overline{(r_i - r_f)} - \beta_i \, \overline{(r_b - r_f)}
+
+    where :math:`\beta_i` is :func:`beta` estimated on the same pairwise
+    complete rows and :math:`r_f` is the risk free rate per period.
+
+    Parameters
+    ----------
+    returns : array-like
+        1D or 2D asset returns. Pandas objects are inner-joined with the
+        benchmark on their index, see :func:`quantkit.utils.align`.
+    benchmark : array-like
+        1D benchmark returns, usually a market index.
+    risk_free : float, optional
+        Risk free rate per period, in the same basis as the returns.
+    factor : float, optional
+        Multiplies the result to change its basis, e.g. 12 to annualize a
+        monthly alpha as Morningstar does.
+
+    Returns
+    -------
+    alpha : float or array-like
+        One value per column of ``returns``. NaN whenever :func:`beta` is.
+
+    References
+    ----------
+    .. [1]: https://en.wikipedia.org/wiki/Jensen%27s_alpha
+
+    Examples
+    --------
+    >>> benchmark = np.array([0.5, -0.25, 0.75, -0.5])
+    >>> alpha(2 * benchmark + 0.125, benchmark)
+    0.125
+    """
+    if factor is None:
+        factor = 1
+
+    def _jensen(col, bench):
+        return _alpha(col, bench, risk_free, factor)
+
+    return _reduce_pairwise(returns, benchmark, _jensen)
+
+
+def correlation(returns, benchmark):
+    r"""Compute the Pearson correlation of ``returns`` with ``benchmark``.
+
+    .. math::
+
+        \rho_i = \frac{cov(r_i, r_b)}{\sigma_{r_i} \, \sigma_{r_b}}
+
+    estimated, for each column, on the rows where the column and the
+    benchmark are both non-NaN.
+
+    Parameters
+    ----------
+    returns : array-like
+        1D or 2D asset returns. Pandas objects are inner-joined with the
+        benchmark on their index, see :func:`quantkit.utils.align`.
+    benchmark : array-like
+        1D benchmark returns, usually a market index.
+
+    Returns
+    -------
+    correlation : float or array-like
+        One value per column of ``returns``, in ``[-1, 1]``. NaN when either
+        side has no variance or fewer than two complete rows are available.
+
+    References
+    ----------
+    .. [1]: https://en.wikipedia.org/wiki/Pearson_correlation_coefficient
+
+    Examples
+    --------
+    >>> benchmark = np.array([0.5, -0.25, 0.75, -0.5])
+    >>> correlation(-benchmark, benchmark)
+    -1.0
+    """
+    return _reduce_pairwise(returns, benchmark, _correlation)
+
+
+def r_squared(returns, benchmark):
+    r"""Compute the coefficient of determination against ``benchmark``.
+
+    The share of the variance of ``returns`` explained by the linear
+    regression on the benchmark, which is the square of the Pearson
+    :func:`correlation`:
+
+    .. math::
+
+        R^2_i = \rho_i^2
+
+    Parameters
+    ----------
+    returns : array-like
+        1D or 2D asset returns. Pandas objects are inner-joined with the
+        benchmark on their index, see :func:`quantkit.utils.align`.
+    benchmark : array-like
+        1D benchmark returns, usually a market index.
+
+    Returns
+    -------
+    r_squared : float or array-like
+        One value per column of ``returns``, in ``[0, 1]``. NaN whenever
+        :func:`correlation` is.
+
+    References
+    ----------
+    .. [1]: https://en.wikipedia.org/wiki/Coefficient_of_determination
+
+    Examples
+    --------
+    >>> benchmark = np.array([0.5, -0.25, 0.75, -0.5])
+    >>> r_squared(-benchmark, benchmark)
+    1.0
+    """
+    return _reduce_pairwise(returns, benchmark, _r_squared)
+
+
+def bull_beta(returns, benchmark):
+    """Compute the beta over the periods where the benchmark went up.
+
+    Morningstar's Bull Beta: :func:`beta` restricted to the rows where
+    ``benchmark > 0``. Rows with a zero benchmark return belong neither to
+    the bull nor to the bear sample.
+
+    Parameters
+    ----------
+    returns : array-like
+        1D or 2D asset returns. Pandas objects are inner-joined with the
+        benchmark on their index, see :func:`quantkit.utils.align`.
+    benchmark : array-like
+        1D benchmark returns, usually a market index.
+
+    Returns
+    -------
+    bull_beta : float or array-like
+        One value per column of ``returns``. NaN when fewer than two rows
+        have a positive benchmark or those rows have no variance.
+
+    References
+    ----------
+    .. [1]: Morningstar, "Custom Calculation Data Points", Bull Beta.
+            https://morningstardirect.morningstar.com/clientcomm/
+            CustomCalculationDataPoints.pdf
+
+    Examples
+    --------
+    >>> benchmark = np.array([0.5, -0.25, 0.75, -0.5])
+    >>> returns = np.array([1.0, -0.125, 1.5, -0.25])  # 2b up, 0.5b down
+    >>> bull_beta(returns, benchmark)
+    2.0
+    """
+    return _reduce_pairwise(returns, benchmark, _bull_beta)
+
+
+def bear_beta(returns, benchmark):
+    """Compute the beta over the periods where the benchmark went down.
+
+    Morningstar's Bear Beta: :func:`beta` restricted to the rows where
+    ``benchmark < 0``. Rows with a zero benchmark return belong neither to
+    the bull nor to the bear sample.
+
+    Parameters
+    ----------
+    returns : array-like
+        1D or 2D asset returns. Pandas objects are inner-joined with the
+        benchmark on their index, see :func:`quantkit.utils.align`.
+    benchmark : array-like
+        1D benchmark returns, usually a market index.
+
+    Returns
+    -------
+    bear_beta : float or array-like
+        One value per column of ``returns``. NaN when fewer than two rows
+        have a negative benchmark or those rows have no variance.
+
+    References
+    ----------
+    .. [1]: Morningstar, "Custom Calculation Data Points", Bear Beta.
+            https://morningstardirect.morningstar.com/clientcomm/
+            CustomCalculationDataPoints.pdf
+
+    Examples
+    --------
+    >>> benchmark = np.array([0.5, -0.25, 0.75, -0.5])
+    >>> returns = np.array([1.0, -0.125, 1.5, -0.25])  # 2b up, 0.5b down
+    >>> bear_beta(returns, benchmark)
+    0.5
+    """
+    return _reduce_pairwise(returns, benchmark, _bear_beta)
