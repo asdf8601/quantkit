@@ -33,7 +33,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- None
+- Drawup family, the mirror image of drawdown (Vecer, 2006):
+  `expanding.drawup` and `stats.max_drawup`.
+- Maximum drawdown details: `max_drawdown_peak`, `max_drawdown_valley`,
+  `max_drawdown_recovery`, `max_drawdown_duration`,
+  `max_drawdown_recovery_duration`, `longest_drawdown_duration` and
+  `average_drawdown`.
+- Return and drawdown ratios: `annualized_return`, `calmar_ratio` and
+  `sterling_ratio`.
+- Downside risk: `downside_deviation`, `upside_deviation`, `kappa`,
+  `omega_ratio` and `sortino_ratio`.
+- Gain and loss statistics: `average_gain`, `average_loss`,
+  `gain_loss_ratio`, `up_period_percent` and `down_period_percent`.
+- Historical `value_at_risk`.
+- Benchmark-relative statistics, aligned by index through `utils.align`:
+  `beta`, `alpha`, `correlation`, `r_squared`, `bull_beta`, `bear_beta`,
+  `treynor_ratio`, `tracking_error`, `information_ratio`, `up_capture`,
+  `down_capture`, `overall_capture` and `batting_average`.
+
+  Definitions follow Morningstar's Custom Calculation Data Points
+  (October 2016). Undefined results (zero denominators, no valid
+  observations) are NaN, never inf.
 
 ### Changed
 
