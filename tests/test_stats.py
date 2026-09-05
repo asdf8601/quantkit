@@ -98,7 +98,7 @@ def get_params():
         relative,
         expected,
     )
-    return gen
+    return list(gen)
 
 
 @pytest.mark.parametrize("data, relative, expected", get_params())
