@@ -369,3 +369,61 @@ def value_at_risk(returns, confidence=0.95):
     out = reduce_array_wrap(returns, var)
 
     return out
+
+
+def max_drawup(prices, relative=True):
+    r"""Calculate the Maximum Drawup.
+
+    The drawup is the rise of the prices from their running minimum, the
+    mirror image of the drawdown:
+
+    .. math::
+
+        U_{t} = S_{t} - \min_{u \in [0, t]}(S_{u})
+
+    "Max drawup" is the largest drawup value observed in the given time
+    series for the whole period.
+
+    .. math::
+
+        MU_{T} = \max_{t \in [0, T]} ( S_{t} - \min_{u \in [0, t]}(S_{u}) )
+
+    Parameters
+    ----------
+    prices : array-like
+        Series on which the drawup is to be calculated.
+    relative : bool, optional
+        Passing True makes the drawup relative (in parts per unit) to the
+        running minimum.
+
+    Returns
+    -------
+    out : float or array-like
+        Maximum Drawup value. NaN when there is no valid observation.
+
+    References
+    ----------
+    .. [1] Jan Vecer - Maximum Drawdown and Directional Trading, Risk 19(12),
+       2006. Maximum drawdown and maximum drawup are studied as a pair.
+       http://www.stat.columbia.edu/~vecer/maxdrawdown3.pdf
+
+    Examples
+    --------
+    >>> prices = np.array([4, 2, 3, 6])
+    >>> max_drawup(prices, relative=False)
+    4.0
+
+    >>> max_drawup(prices)
+    2.0
+    """
+    du = expanding.drawup(prices, relative=relative)
+    arr = du.__array__()
+
+    if arr.shape[0] == 0:
+        # no observations: nanmax would raise, return NaN instead
+        out = np.full(arr.shape[1:], np.nan)
+    else:
+        out = np.nanmax(arr, axis=0)
+
+    out = reduce_array_wrap(prices, out)
+    return out
