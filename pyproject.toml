@@ -1,7 +1,61 @@
 [build-system]
-# These are the assumed default build requirements from pip:
-# https://pip.pypa.io/en/stable/reference/pip/#pep-517-and-518-support
-# About versioneer pip<19:
-# https://github.com/warner/python-versioneer/issues/192#issuecomment-623144826
-requires = ["setuptools>=40.8.0", "wheel", "versioneer-518"]
-build-backend = "setuptools.build_meta"
+requires = ["uv_build>=0.11.0,<0.12.0"]
+build-backend = "uv_build"
+
+[project]
+name = "quantkit"
+version = "0.1.0"
+description = "Quantitative functions for finance analysis."
+readme = "README.md"
+license = "MIT"
+authors = [{ name = "mmngreco" }]
+requires-python = ">=3.10"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+]
+dependencies = ["numpy", "pandas"]
+
+[project.urls]
+Homepage = "https://github.com/asdf8601/quantkit"
+Changelog = "https://github.com/asdf8601/quantkit/blob/master/CHANGELOG.md"
+
+[dependency-groups]
+test = ["pytest", "pytest-xdist", "pytest-cov", "sympy"]
+lint = ["ruff", "ty"]
+docs = ["Sphinx", "numpydoc", "sphinx-rtd-theme", "sphinx-autoapi"]
+dev = [
+    { include-group = "test" },
+    { include-group = "lint" },
+    { include-group = "docs" },
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.coverage.run]
+branch = true
+source = ["src"]
+omit = ["*/__init__.py"]
+
+[tool.ruff]
+line-length = 79
+target-version = "py310"
+# Same scope as the previous flake8 config: only the library is linted.
+extend-exclude = ["docs", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "D"]
+ignore = ["D100", "D202"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.ty.src]
+# Same scope as ruff: the library only. Test code exercises pandas
+# signatures that its inline typing does not model well.
+include = ["src"]
+
+[tool.ty.environment]
+python-version = "3.10"

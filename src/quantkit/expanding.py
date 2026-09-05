@@ -1,7 +1,9 @@
 """Financial statistics applied using an expanding window basis approach."""
+
+import numpy as np
+
 from quantkit import decorators
 from quantkit.utils import array_wrap
-import numpy as np
 
 
 @decorators.numpy2pandas_args_wrapper(0)
