@@ -23,6 +23,19 @@ from quantkit.decorators import reduce_array_wrap
 from quantkit.utils import align, first_valid_index, last_valid_index
 
 
+def _empty_reduction(obj):
+    """Reduce an object with no observation to NaN, one value per column.
+
+    A reducer with nothing to reduce has an undefined result, which is NaN
+    by convention, never an exception and never inf.
+    """
+    arr = obj.__array__()
+    out = np.full(arr.shape[1:], np.nan)
+    if arr.ndim == 1:
+        out = out[()]
+    return reduce_array_wrap(obj, out)
+
+
 def total_returns(prices, factor=None, relative=True):
     """Calculate arithmetic total return.
 
@@ -48,12 +61,16 @@ def total_returns(prices, factor=None, relative=True):
     Returns
     -------
     total_return : float
+        NaN when a column has no valid observation.
 
     References
     ----------
     .. [1] https://en.wikipedia.org/wiki/Rate_of_return
 
     """
+    if len(prices) == 0:
+        return _empty_reduction(prices)
+
     arr = prices.__array__()
     ndim = arr.ndim
 
@@ -129,6 +146,7 @@ def volatility(returns, factor=None, ddof=1):
     Returns
     -------
     volatility : array-like
+        NaN when a column has no valid observation.
 
     References
     ----------
@@ -147,6 +165,9 @@ def volatility(returns, factor=None, ddof=1):
     >>> volatility(returns, factor=None, ddof=1):
     1
     """
+    if len(returns) == 0:
+        return _empty_reduction(returns)
+
     # TODO: automatic factor calculation assuming an index frequency
     if factor is None:
         factor = 1
@@ -182,13 +203,16 @@ def drawdown(prices, relative=True):
     Returns
     -------
     out : float or array-like
-        Drawdown value.
+        Drawdown value. NaN when a column has no valid observation.
 
     References
     ----------
     .. [1] Jan Vecer - Maximum Drawdown and Directional Trading, Risk 19(12),
        88-92, 2006.
     """
+    if len(prices) == 0:
+        return _empty_reduction(prices)
+
     arr = prices.__array__()
     last_idx = last_valid_index(array=arr)
     ndim = arr.ndim
@@ -237,7 +261,7 @@ def max_drawdown(prices, relative=True):
     Returns
     -------
     out : float or array-like
-        Maximum Drawdown value.
+        Maximum Drawdown value. NaN when a column has no valid observation.
 
     Examples
     --------
@@ -249,6 +273,9 @@ def max_drawdown(prices, relative=True):
     >>> max_drawdown(prices)
     -1
     """
+    if len(prices) == 0:
+        return _empty_reduction(prices)
+
     dd = expanding.drawdown(prices, relative=relative)
     out = np.nanmin(dd, axis=0)
     out = reduce_array_wrap(prices, out)
@@ -284,12 +311,16 @@ def sharpe_ratio(
     Returns
     -------
     out : 1d-reduced-array
+        NaN when a column has no valid observation.
 
     References
     ----------
     .. [1] https://en.wikipedia.org/wiki/Sharpe_ratio
 
     """
+    if len(returns) == 0:
+        return _empty_reduction(returns)
+
     ret_excess = returns - risk_free
     e_ret_excess = np.nanmean(ret_excess, axis=-1)
     sigma = np.nanstd(ret_excess)

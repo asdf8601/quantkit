@@ -29,9 +29,10 @@ intput to {pandas, numpy} -> output to {pandas, numpy}:
 
 from functools import wraps
 
+import numpy as np
 import pandas as pd
 
-from quantkit.utils import array_wrap, iloc
+from quantkit.utils import array_wrap
 
 
 def _np2pd(np_obj):
@@ -170,8 +171,12 @@ def reduce_array_wrap(obj, res):
     ndim = obj.ndim
 
     if ndim == 2:
-        new_obj = iloc(obj, 0)
-        out = array_wrap(new_obj, res)
+        # built from the columns, not from a row: a zero-row object has no
+        # row to borrow the container from, but it still has its columns
+        if isinstance(obj, pd.DataFrame):
+            out = pd.Series(res, index=obj.columns, copy=False)
+        else:
+            out = np.asarray(res)
     elif ndim == 1:
         out = res
     else:
