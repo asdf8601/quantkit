@@ -109,3 +109,25 @@ def test_array_wrap_does_not_copy():
     obtained = array_wrap(like, values)
 
     assert np.shares_memory(obtained.to_numpy(), values)
+
+
+def test_reduce_zero_row_numpy_gives_one_value_per_column():
+    arr = np.empty((0, 2))
+    res = np.array([np.nan, np.nan])
+
+    obtained = reduce_array_wrap(arr, res)
+
+    assert isinstance(obtained, np.ndarray)
+    assert obtained.shape == (2,)  # one value per column, no row indexed
+    np.testing.assert_array_equal(obtained, res)
+
+
+def test_reduce_zero_row_dataframe_is_indexed_by_the_columns():
+    df = pd.DataFrame(columns=["a", "b"], dtype=float)
+    res = np.array([np.nan, np.nan])
+
+    obtained = reduce_array_wrap(df, res)
+    expected = pd.Series([np.nan, np.nan], index=["a", "b"])
+
+    assert obtained.name is None
+    pd.testing.assert_series_equal(obtained, expected)
