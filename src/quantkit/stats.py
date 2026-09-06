@@ -51,7 +51,7 @@ def total_returns(prices, factor=None, relative=True):
 
     References
     ----------
-    .. [1]: https://en.wikipedia.org/wiki/Rate_of_return
+    .. [1] https://en.wikipedia.org/wiki/Rate_of_return
 
     """
     arr = prices.__array__()
@@ -132,9 +132,9 @@ def volatility(returns, factor=None, ddof=1):
 
     References
     ----------
-    .. [1]: https://en.wikipedia.org/wiki/Volatility_(finance)
+    .. [1] https://en.wikipedia.org/wiki/Volatility_(finance)
             #Mathematical_definition
-    .. [2]: https://en.wikipedia.org/wiki/
+    .. [2] https://en.wikipedia.org/wiki/
             Unbiased_estimation_of_standard_deviation
 
     Examples
@@ -186,8 +186,8 @@ def drawdown(prices, relative=True):
 
     References
     ----------
-    .. [1] Jan Vecer - Maximum Drawdown and Directional Trading
-       http://www.stat.columbia.edu/~vecer/maxdrawdown3.pdf
+    .. [1] Jan Vecer - Maximum Drawdown and Directional Trading, Risk 19(12),
+       88-92, 2006.
     """
     arr = prices.__array__()
     last_idx = last_valid_index(array=arr)
@@ -287,7 +287,7 @@ def sharpe_ratio(
 
     References
     ----------
-    .. [1]: https://en.wikipedia.org/wiki/Sharpe_ratio
+    .. [1] https://en.wikipedia.org/wiki/Sharpe_ratio
 
     """
     ret_excess = returns - risk_free
@@ -337,8 +337,8 @@ def value_at_risk(returns, confidence=0.95):
 
     References
     ----------
-    .. [1]: https://en.wikipedia.org/wiki/Value_at_risk
-    .. [2]: Jorion, P. (2006). Value at Risk: The New Benchmark for Managing
+    .. [1] https://en.wikipedia.org/wiki/Value_at_risk
+    .. [2] Jorion, P. (2006). Value at Risk: The New Benchmark for Managing
             Financial Risk. McGraw-Hill.
 
     Examples
@@ -462,7 +462,7 @@ def annualized_return(returns, periods_per_year=BYEAR):
 
     References
     ----------
-    .. [1]: https://en.wikipedia.org/wiki/Rate_of_return#Annualization
+    .. [1] https://en.wikipedia.org/wiki/Rate_of_return#Annualization
 
     Examples
     --------
@@ -524,8 +524,8 @@ def calmar_ratio(returns, periods_per_year=BYEAR):
 
     References
     ----------
-    .. [1]: https://en.wikipedia.org/wiki/Calmar_ratio
-    .. [2]: Young, T. W. (1991). Calmar Ratio: A Smoother Tool. Futures,
+    .. [1] https://en.wikipedia.org/wiki/Calmar_ratio
+    .. [2] Young, T. W. (1991). Calmar Ratio: A Smoother Tool. Futures,
             20(1), 40.
 
     Examples
@@ -625,7 +625,7 @@ def average_gain(returns, method="arith"):
     References
     ----------
     .. [1] Morningstar, Custom Calculation Data Points, October 2016.
-    https://morningstardirect.morningstar.com/clientcomm/customcalculations.pdf
+       https://morningstardirect.morningstar.com/clientcomm/customcalculations.pdf
 
     Examples
     --------
@@ -676,7 +676,7 @@ def average_loss(returns, method="arith"):
     References
     ----------
     .. [1] Morningstar, Custom Calculation Data Points, October 2016.
-    https://morningstardirect.morningstar.com/clientcomm/customcalculations.pdf
+       https://morningstardirect.morningstar.com/clientcomm/customcalculations.pdf
 
     Examples
     --------
@@ -722,7 +722,7 @@ def gain_loss_ratio(returns):
     References
     ----------
     .. [1] Morningstar, Custom Calculation Data Points, October 2016.
-    https://morningstardirect.morningstar.com/clientcomm/customcalculations.pdf
+       https://morningstardirect.morningstar.com/clientcomm/customcalculations.pdf
 
     Examples
     --------
@@ -765,7 +765,7 @@ def up_period_percent(returns):
     References
     ----------
     .. [1] Morningstar, Custom Calculation Data Points, October 2016.
-    https://morningstardirect.morningstar.com/clientcomm/customcalculations.pdf
+       https://morningstardirect.morningstar.com/clientcomm/customcalculations.pdf
 
     Examples
     --------
@@ -805,7 +805,7 @@ def down_period_percent(returns):
     References
     ----------
     .. [1] Morningstar, Custom Calculation Data Points, October 2016.
-    https://morningstardirect.morningstar.com/clientcomm/customcalculations.pdf
+       https://morningstardirect.morningstar.com/clientcomm/customcalculations.pdf
 
     Examples
     --------
@@ -1616,7 +1616,7 @@ def beta(returns, benchmark):
 
     References
     ----------
-    .. [1]: https://en.wikipedia.org/wiki/Beta_(finance)
+    .. [1] https://en.wikipedia.org/wiki/Beta_(finance)
 
     Examples
     --------
@@ -1657,7 +1657,7 @@ def alpha(returns, benchmark, risk_free=0.0, factor=None):
 
     References
     ----------
-    .. [1]: https://en.wikipedia.org/wiki/Jensen%27s_alpha
+    .. [1] https://en.wikipedia.org/wiki/Jensen%27s_alpha
 
     Examples
     --------
@@ -1700,7 +1700,7 @@ def correlation(returns, benchmark):
 
     References
     ----------
-    .. [1]: https://en.wikipedia.org/wiki/Pearson_correlation_coefficient
+    .. [1] https://en.wikipedia.org/wiki/Pearson_correlation_coefficient
 
     Examples
     --------
@@ -1738,7 +1738,7 @@ def r_squared(returns, benchmark):
 
     References
     ----------
-    .. [1]: https://en.wikipedia.org/wiki/Coefficient_of_determination
+    .. [1] https://en.wikipedia.org/wiki/Coefficient_of_determination
 
     Examples
     --------
@@ -1772,7 +1772,7 @@ def bull_beta(returns, benchmark):
 
     References
     ----------
-    .. [1]: Morningstar, "Custom Calculation Data Points", Bull Beta.
+    .. [1] Morningstar, "Custom Calculation Data Points", Bull Beta.
             https://morningstardirect.morningstar.com/clientcomm/
             CustomCalculationDataPoints.pdf
 
@@ -1809,7 +1809,7 @@ def bear_beta(returns, benchmark):
 
     References
     ----------
-    .. [1]: Morningstar, "Custom Calculation Data Points", Bear Beta.
+    .. [1] Morningstar, "Custom Calculation Data Points", Bear Beta.
             https://morningstardirect.morningstar.com/clientcomm/
             CustomCalculationDataPoints.pdf
 
@@ -1884,8 +1884,8 @@ def treynor_ratio(returns, benchmark, risk_free=0.0, factor=None):
 
     References
     ----------
-    .. [1]: https://en.wikipedia.org/wiki/Treynor_ratio
-    .. [2]: Morningstar, "Custom Calculation Data Points", Treynor Ratio.
+    .. [1] https://en.wikipedia.org/wiki/Treynor_ratio
+    .. [2] Morningstar, "Custom Calculation Data Points", Treynor Ratio.
             https://morningstardirect.morningstar.com/clientcomm/
             CustomCalculationDataPoints.pdf
 
@@ -1995,7 +1995,7 @@ def up_capture(returns, benchmark):
 
     References
     ----------
-    .. [1]: Morningstar, "Custom Calculation Data Points", Up Capture Ratio.
+    .. [1] Morningstar, "Custom Calculation Data Points", Up Capture Ratio.
             https://morningstardirect.morningstar.com/clientcomm/
             CustomCalculationDataPoints.pdf
 
@@ -2052,7 +2052,7 @@ def down_capture(returns, benchmark):
 
     References
     ----------
-    .. [1]: Morningstar, "Custom Calculation Data Points", Down Capture
+    .. [1] Morningstar, "Custom Calculation Data Points", Down Capture
             Ratio. https://morningstardirect.morningstar.com/clientcomm/
             CustomCalculationDataPoints.pdf
 
@@ -2104,7 +2104,7 @@ def overall_capture(returns, benchmark):
 
     References
     ----------
-    .. [1]: Morningstar, "Custom Calculation Data Points", Overall Capture
+    .. [1] Morningstar, "Custom Calculation Data Points", Overall Capture
             Ratio. https://morningstardirect.morningstar.com/clientcomm/
             CustomCalculationDataPoints.pdf
 
@@ -2155,7 +2155,7 @@ def batting_average(returns, benchmark):
 
     References
     ----------
-    .. [1]: Morningstar, "Custom Calculation Data Points", Batting Average.
+    .. [1] Morningstar, "Custom Calculation Data Points", Batting Average.
             https://morningstardirect.morningstar.com/clientcomm/
             CustomCalculationDataPoints.pdf
 
@@ -2216,13 +2216,13 @@ def sterling_ratio(returns, periods_per_year=BYEAR, excess=0.10):
 
     References
     ----------
-    .. [1]: Morningstar, "Custom Calculation Data Points" (October 2016),
+    .. [1] Morningstar, "Custom Calculation Data Points" (October 2016),
             Sterling Ratio: the compounded annual return over the average
             maximum drawdown minus 10%, taken in absolute value as a
             positive risk figure.
             https://morningstardirect.morningstar.com/clientcomm/
             customcalculations.pdf
-    .. [2]: https://en.wikipedia.org/wiki/Sterling_ratio
+    .. [2] https://en.wikipedia.org/wiki/Sterling_ratio
 
     Examples
     --------

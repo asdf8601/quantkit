@@ -45,7 +45,7 @@ extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.todo',
     'sphinx.ext.viewcode',
-    'sphinx.ext.napoleon',
+    'numpydoc',
     'sphinx.ext.mathjax',
 ]
 
@@ -66,7 +66,7 @@ master_doc = 'index'
 #
 # This is also used if you do content translation via gettext catalogs.
 # Usually you set "language" from the command line for these cases.
-language = None
+language = 'en'
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
@@ -195,11 +195,7 @@ SRC_DIR = str(Path(__file__).parent.parent.parent)
 sys.path.insert(0, SRC_DIR)
 autosummary_generate = True
 html_theme = 'sphinx_rtd_theme'
-napoleon_use_param = False  # this does not seem to make much difference
-napoleon_use_rtype = False  # show argument name and return type in the same line
-napoleon_numpy_docstring = True  # the only allowed format for docstring is numpy style
-napoleon_google_docstring = False  # google-style docstrings are not allowed
-# napoleon_custom_sections = ['Characteristics', 'Indicators']
+numpydoc_show_class_members = False
 autodoc_member_order = 'alphabetical' # {'alphabetical','groupwise','bysource'}
 
 # end customization
@@ -208,3 +204,28 @@ autodoc_member_order = 'alphabetical' # {'alphabetical','groupwise','bysource'}
 extensions.append('autoapi.extension')
 autoapi_type = 'python'
 autoapi_dirs = ['../../src']
+
+
+def setup(app):
+    """Keep numpydoc citation ids unique under autoapi.
+
+    numpydoc derives the citation ids of a docstring from the object name it
+    receives. autoapi passes the bare name, so two functions called the same
+    in different modules (``stats.drawdown`` and ``expanding.drawdown``) get
+    identical ids and Sphinx reports duplicate citations. Hashing the
+    docstring into the name keeps the ids unique.
+    """
+    import hashlib
+
+    from numpydoc import numpydoc as _numpydoc
+
+    def mangle_docstrings(app, what, name, obj, options, lines):
+        digest = hashlib.sha256("\n".join(lines).encode("utf8")).hexdigest()
+        unique = f"{name}-{digest[:8]}"
+        _numpydoc.mangle_docstrings(app, what, unique, obj, options, lines)
+
+    for listener in app.events.listeners["autodoc-process-docstring"]:
+        if listener.handler is _numpydoc.mangle_docstrings:
+            app.disconnect(listener.id)
+            break
+    app.connect("autodoc-process-docstring", mangle_docstrings)
