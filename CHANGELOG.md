@@ -76,5 +76,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `np.ndarray`.
 - `stats.sharpe_ratio` annotated `risk_free` as `float` while the docstring
   and tests use array-like values; the annotation now allows both.
+- Empty input raised instead of reducing to NaN. `decorators.reduce_array_wrap`
+  built the reduced container from the first row, so any reducer given a
+  2-dimensional input with zero rows raised `IndexError`; it now builds the
+  container from the columns. `stats.total_returns`, `volatility`, `drawdown`,
+  `max_drawdown` and `sharpe_ratio` also raised or warned on empty input and
+  now return NaN, one value per column, like the rest of the reducers.
 
 [Unreleased]: https://github.com/asdf8601/quantkit/compare/v0.0.0...HEAD
