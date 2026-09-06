@@ -302,16 +302,20 @@ def sharpe_ratio(
     Parameters
     ----------
     returns : array-like
-        Asset return series.
+        Asset return series. Reductions are column-wise.
     risk_free : number or array-like
-        Risk free return.
+        Risk free return. A number is subtracted from every period; a 1d
+        series is a per-period rate and is subtracted row by row, aligned by
+        index when both it and ``returns`` are pandas objects.
     factor : float
         Annualization factor which multiplies the raw sharpe ratio.
 
     Returns
     -------
-    out : 1d-reduced-array
-        NaN when a column has no valid observation.
+    out : float or array-like
+        Float for 1d input, one value per column for 2d input. NaN when the
+        excess return has no deviation (zero denominator) or when a column
+        has no valid observation.
 
     References
     ----------
@@ -321,11 +325,29 @@ def sharpe_ratio(
     if len(returns) == 0:
         return _empty_reduction(returns)
 
-    ret_excess = returns - risk_free
-    e_ret_excess = np.nanmean(ret_excess, axis=-1)
-    sigma = np.nanstd(ret_excess)
+    if np.ndim(risk_free) == 0:
+        excess = returns.__array__() - risk_free
+    else:
+        arr, rates = align(returns, risk_free)
+        # a per-period rate is one number per row, broadcast over the columns
+        excess = arr - (rates[:, None] if arr.ndim == 2 else rates)
 
-    return (e_ret_excess / sigma) * factor
+    excess = np.asarray(excess, dtype=float)
+    mean = _nanmean(excess)
+    sigma = np.sqrt(_nanmean((excess - mean) ** 2))  # population, ddof=0
+
+    # the deviation of a constant column can come out as a tiny positive
+    # number when its mean is rounded, as _is_degenerate documents; test the
+    # identity of the values instead. A column with no valid observation
+    # compares inf against -inf and keeps its NaN deviation.
+    valid = ~np.isnan(excess)
+    lowest = np.min(np.where(valid, excess, np.inf), axis=0)
+    highest = np.max(np.where(valid, excess, -np.inf), axis=0)
+    sigma = np.where(lowest == highest, 0.0, sigma)
+
+    out = _nan_divide(mean, sigma) * factor
+
+    return reduce_array_wrap(returns, out)
 
 
 def value_at_risk(returns, confidence=0.95):

@@ -30,7 +30,7 @@ RETS_2D = np.array(
         [0.3, 0.4],
     ]
 )
-EXPECTED_2D = [0.7071068, 1.2247449]
+EXPECTED_2D = [1 / np.sqrt(2), np.sqrt(1.5)]
 
 COLUMNS = ["a", "b"]
 INDEX = ["mon", "tue", "wed"]
