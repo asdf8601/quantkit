@@ -82,5 +82,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   container from the columns. `stats.total_returns`, `volatility`, `drawdown`,
   `max_drawdown` and `sharpe_ratio` also raised or warned on empty input and
   now return NaN, one value per column, like the rest of the reducers.
+- `stats.sharpe_ratio` reduced 2-dimensional input along the wrong axis, so
+  it returned one value per row instead of one per column, divided by a
+  single deviation computed over the whole array, and gave back a bare
+  ndarray for a `DataFrame`. It now reduces per column through
+  `reduce_array_wrap`, subtracts an array-like `risk_free` row by row
+  (aligned by index for pandas) and returns NaN, never inf, when the excess
+  return has no deviation.
 
 [Unreleased]: https://github.com/asdf8601/quantkit/compare/v0.0.0...HEAD
