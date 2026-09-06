@@ -317,6 +317,17 @@ def sharpe_ratio(
         excess return has no deviation (zero denominator) or when a column
         has no valid observation.
 
+    Examples
+    --------
+    >>> sharpe_ratio(np.array([0, 2]), np.array([0, 0]), factor=1)
+    1.0
+
+    Two columns reduce to one value each:
+
+    >>> returns = np.array([[0.0, 0.0], [0.0, 0.2], [0.3, 0.4]])
+    >>> sharpe_ratio(returns, 0.0, factor=1)
+    array([0.70710678, 1.22474487])
+
     References
     ----------
     .. [1] https://en.wikipedia.org/wiki/Sharpe_ratio
