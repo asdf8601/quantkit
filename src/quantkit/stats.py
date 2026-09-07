@@ -1,7 +1,7 @@
 """Stats module.
 
 All functions here receive a time series (1-dimension or 2-dimension) and
-returns a number for each column:
+reduce it to one value per column:
 
 f(x_t) -> y
 
@@ -9,7 +9,15 @@ WHERE:
 
     f() : function
     x_t : time series
-    y : float
+    y : one value per column
+
+A 1-dimension input reduces to a scalar and a 2-dimension input to one value
+per column: a Series indexed by the columns for a DataFrame and a 1-dimension
+array for a numpy array, see :func:`quantkit.decorators.reduce_array_wrap`.
+The value is a float, except for the functions that locate a point in time
+(:func:`max_drawdown_peak`, :func:`max_drawdown_valley` and
+:func:`max_drawdown_recovery`), which give a position for numpy input and an
+index label for pandas input.
 """
 
 import warnings
@@ -36,6 +44,17 @@ def _empty_reduction(obj):
     return reduce_array_wrap(obj, out)
 
 
+def _positions(index):
+    """Turn the output of the ``*_valid_index`` utils into integer positions.
+
+    A column without a valid observation comes out of those utils as None
+    (1-dimension) or NaN (2-dimension), which cannot index an array. Such a
+    column gets position 0; its value there is NaN, so the reduction of the
+    column comes out as NaN by itself.
+    """
+    return np.nan_to_num(np.asarray(index, dtype=float)).astype(int)
+
+
 def total_returns(prices, factor=None, relative=True):
     """Calculate arithmetic total return.
 
@@ -60,8 +79,10 @@ def total_returns(prices, factor=None, relative=True):
 
     Returns
     -------
-    total_return : float
-        NaN when a column has no valid observation.
+    total_return : float or array-like
+        Float for 1d input, one value per column for 2d input (a Series
+        indexed by the columns for a DataFrame). NaN when a column has fewer
+        than two valid observations.
 
     References
     ----------
@@ -71,12 +92,14 @@ def total_returns(prices, factor=None, relative=True):
     if len(prices) == 0:
         return _empty_reduction(prices)
 
-    arr = prices.__array__()
+    # float so that the relative return can be written in place over integer
+    # prices
+    arr = np.asarray(prices.__array__(), dtype=float)
     ndim = arr.ndim
 
-    first_idx = np.nan_to_num(first_valid_index(arr)).astype(int)
-    last_idx = np.nan_to_num(last_valid_index(arr)).astype(int)
-    replace_with_nan = np.isclose(first_idx, last_idx)
+    first_idx = _positions(first_valid_index(arr))
+    last_idx = _positions(last_valid_index(arr))
+    replace_with_nan = first_idx == last_idx
 
     if ndim == 2:
         col_idx = np.arange(arr.shape[1])
@@ -95,20 +118,14 @@ def total_returns(prices, factor=None, relative=True):
         # r = (1+R)^(1/t)-1 = sqrt[t](1+R)-1
         tot_ret = (tot_ret + 1) ** factor - 1
 
-    # ------------------------------------------------------------------------
-    # RETURNS
-
-    if not np.any(replace_with_nan):
-        return tot_ret
-
+    # a column with fewer than two valid observations has no return
     if ndim == 1:
-        tot_ret = np.nan
-    elif ndim == 2:
-        tot_ret[replace_with_nan] = np.nan
+        if replace_with_nan:
+            tot_ret = np.nan
     else:
-        raise NotImplementedError
+        tot_ret[replace_with_nan] = np.nan
 
-    return tot_ret
+    return reduce_array_wrap(prices, tot_ret)
 
 
 def volatility(returns, factor=None, ddof=1):
@@ -192,6 +209,7 @@ def drawdown(prices, relative=True):
        D_{t} = \max_{u \in [0, t]}(S_{u}) - S_{t}
 
     For the whole period, the running maximum is the maximum of the period.
+    Columns are reduced independently, each one against its own maximum.
 
     Parameters
     ----------
@@ -203,7 +221,8 @@ def drawdown(prices, relative=True):
     Returns
     -------
     out : float or array-like
-        Drawdown value. NaN when a column has no valid observation.
+        Float for 1d input, one value per column for 2d input. NaN when a
+        column has no valid observation.
 
     References
     ----------
@@ -214,23 +233,24 @@ def drawdown(prices, relative=True):
         return _empty_reduction(prices)
 
     arr = prices.__array__()
-    last_idx = last_valid_index(array=arr)
-    ndim = arr.ndim
+    last_idx = _positions(last_valid_index(arr))
 
     # if 2 dimensions, indexing has to be carried out in both axis
-    if ndim == 2:
-        col_idx = np.arange(arr.shape[1])
-        last_idx = last_idx, col_idx
+    if arr.ndim == 2:
+        last_idx = last_idx, np.arange(arr.shape[1])
 
     last_element = arr[last_idx]
-    if relative:
-        out = np.divide(last_element, np.nanmax(prices))
-        out -= 1
-    else:
-        out = last_element - np.nanmax(prices)
+    with warnings.catch_warnings():
+        # nanmax warns on an all-NaN column; NaN is the documented result
+        warnings.simplefilter("ignore", RuntimeWarning)
+        peak = np.nanmax(arr, axis=0)  # the maximum of each column
 
-    out = reduce_array_wrap(prices, out)
-    return out
+    if relative:
+        out = last_element / peak - 1
+    else:
+        out = last_element - peak
+
+    return reduce_array_wrap(prices, out)
 
 
 def max_drawdown(prices, relative=True):

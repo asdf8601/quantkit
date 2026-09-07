@@ -1,4 +1,6 @@
 """Pool of stats tests."""
+import warnings
+
 from quantkit import stats
 
 import pytest
@@ -104,7 +106,35 @@ def get_params():
 @pytest.mark.parametrize("data, relative, expected", get_params())
 def test_total_returns_relative(expected, data, relative):
     obtained = stats.total_returns(data, relative=relative)
-    np.testing.assert_almost_equal(expected, obtained)
+    if isinstance(expected, pd.Series):
+        pd.testing.assert_series_equal(expected, obtained)
+    else:
+        np.testing.assert_almost_equal(expected, obtained)
+
+
+def test_total_returns_dataframe_returns_series():
+    prices = pd.DataFrame({"a": [1.0, 2.0, 3.0], "b": [10.0, 20.0, 30.0]})
+    obtained = stats.total_returns(prices)
+    expected = pd.Series([2.0, 2.0], index=["a", "b"])
+    pd.testing.assert_series_equal(expected, obtained)
+
+
+def test_total_returns_2darray_returns_1darray():
+    prices = np.array([[1.0, 10.0], [2.0, 20.0], [3.0, 30.0]])
+    obtained = stats.total_returns(prices)
+    assert isinstance(obtained, np.ndarray)
+    np.testing.assert_almost_equal(np.array([2.0, 2.0]), obtained)
+
+
+def test_total_returns_int_prices_relative():
+    prices = np.array([[1, 10], [3, 20]])
+    obtained = stats.total_returns(prices, relative=True)
+    np.testing.assert_almost_equal(np.array([2.0, 1.0]), obtained)
+
+
+def test_total_returns_all_nan_is_nan():
+    assert np.isnan(stats.total_returns(np.array([np.nan, np.nan])))
+    assert np.isnan(stats.total_returns(pd.Series([np.nan, np.nan])))
 
 
 def test_volatility_1darray():
@@ -223,14 +253,14 @@ def test_drawdown_np_multidimensional():
     data = np.array(
         [[1, 2, 3], [4, 9, 0], [-1, 6, 7]]
     )
-    expected = np.array([-10, -3, -2])
+    expected = np.array([-5, -3, 0])
     obtained = stats.drawdown(prices=data, relative=False)
     np.testing.assert_almost_equal(expected, obtained)
 
 
 def test_drawdown_np_multidimensional_relative():
     data = np.array([[1, 2, 3], [4, 9, 0], [-1, 6, 7]])
-    expected = np.array([-1.1111111111, -0.3333333333, -0.2222222222])
+    expected = np.array([-1.25, -0.3333333333, 0.0])
     obtained = stats.drawdown(prices=data, relative=True)
     np.testing.assert_almost_equal(expected, obtained, decimal=10)
 
@@ -253,7 +283,7 @@ def test_drawdown_pd_multidimensional():
     data = pd.DataFrame(
         np.array([[1, 2, 3], [4, 9, 0], [-1, 6, 7]])
     )
-    expected = pd.Series(np.array([-10, -3, -2]))
+    expected = pd.Series(np.array([-5, -3, 0]))
     obtained = stats.drawdown(prices=data, relative=False)
     pd.testing.assert_series_equal(expected, obtained)
 
@@ -262,10 +292,39 @@ def test_drawdown_pd_multidimensional_relative():
     data = pd.DataFrame(
         np.array([[1, 2, 3], [4, 9, 0], [-1, 6, 7]])
     )
-    expected = pd.Series(np.array([-1.11111111, -0.33333333, -0.22222222]))
+    expected = pd.Series(np.array([-1.25, -0.33333333, 0.0]))
     obtained = stats.drawdown(prices=data, relative=True)
 
     pd.testing.assert_series_equal(expected, obtained)
+
+
+def test_drawdown_pd_multidimensional_matches_each_column():
+    prices = pd.DataFrame(
+        {"a": [1.0, 2.0, 1.0, 3.0], "b": [10.0, 5.0, 8.0, 4.0]}
+    )
+    obtained = stats.drawdown(prices)
+    expected = pd.Series(
+        [stats.drawdown(prices["a"]), stats.drawdown(prices["b"])],
+        index=["a", "b"],
+    )
+    pd.testing.assert_series_equal(expected, obtained)
+
+
+def test_drawdown_all_nan_column_is_nan():
+    prices = pd.DataFrame({"a": [4.0, 3.0, 1.0], "b": [np.nan] * 3})
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        obtained = stats.drawdown(prices)
+    expected = pd.Series([-0.75, np.nan], index=["a", "b"])
+    pd.testing.assert_series_equal(expected, obtained)
+
+
+def test_drawdown_all_nan_1d_is_nan():
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        obtained = stats.drawdown(np.array([np.nan, np.nan]))
+    assert np.ndim(obtained) == 0
+    assert np.isnan(obtained)
 
 
 def test_drawdown_nan():

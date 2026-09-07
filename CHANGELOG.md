@@ -89,5 +89,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `reduce_array_wrap`, subtracts an array-like `risk_free` row by row
   (aligned by index for pandas) and returns NaN, never inf, when the excess
   return has no deviation.
+- `stats.total_returns` returned a bare ndarray for a `DataFrame` instead of
+  a `Series` indexed by the columns, raised on integer prices with
+  `relative=True` and on a 1-dimensional input without a valid observation.
+  It now goes through `reduce_array_wrap` like every other reducer and gives
+  NaN in both cases.
+- `stats.drawdown` measured every column of a 2-dimensional input against
+  the maximum of the whole array instead of the maximum of its own column,
+  so the result for a `DataFrame` did not match the result for each of its
+  columns. It also raised on a column without a valid observation and
+  returned a 2-dimensional array for an all-NaN 1-dimensional input; both
+  now give NaN.
 
 [Unreleased]: https://github.com/asdf8601/quantkit/compare/v0.0.0...HEAD
