@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-`quantkit` is a small finance-statistics library (returns, drawdown, volatility, Sharpe) built on numpy and pandas only. Source lives under `src/quantkit/` (src layout). Status is alpha and the README says "Very WIP".
+`quantkit` is a small finance-statistics library (returns, drawdown, volatility, Sharpe and the Morningstar-style risk, ratio and benchmark statistics) built on numpy and pandas only. Source lives under `src/quantkit/` (src layout). Status is alpha and the README says "Very WIP".
 
 ## Commands
 
@@ -54,11 +54,11 @@ The library has one central contract: **every public function accepts a numpy ar
 | Module | Shape | Contents |
 |---|---|---|
 | `core` | series -> series | `returns`, `cum_returns`, `rebase` |
-| `expanding` | series -> series, expanding window | `drawdown` |
+| `expanding` | series -> series, expanding window | `drawdown`, `drawup` |
 | `rolling` | series -> series, rolling window | `volatility` (wraps `stats.volatility` through pandas `.rolling().apply`) |
-| `stats` | series -> one number per column | `total_returns`, `volatility`, `drawdown`, `max_drawdown`, `sharpe_ratio` |
+| `stats` | series -> one value per column | About 45 reducers: `total_returns`, `volatility`, `drawdown`, `max_drawdown`, `max_drawup`, `sharpe_ratio`, `value_at_risk`, `annualized_return`; drawdown details (`max_drawdown_peak`/`_valley`/`_recovery`, durations, `average_drawdown`); downside risk (`downside_deviation`, `upside_deviation`, `kappa`, `omega_ratio`, `sortino_ratio`); gain/loss and up/down period stats; `calmar_ratio`, `sterling_ratio`; benchmark-relative (`beta`, `alpha`, `correlation`, `r_squared`, `bull_beta`, `bear_beta`, `treynor_ratio`, `tracking_error`, `information_ratio`, capture ratios, `batting_average`). All go through `reduce_array_wrap`; the three `max_drawdown_peak/valley/recovery` return an index label (not a float) for pandas input |
 | `decorators` | plumbing | `numpy2pandas_args_wrapper`, `array_output_wrapper`, `reduce_array_wrap` |
-| `utils` | plumbing | `array_wrap`, `iloc`, `first_valid_index`, `last_valid_index` |
+| `utils` | plumbing | `array_wrap`, `align`, `iloc`, `first_valid_index`, `last_valid_index` |
 | `conventions` | constants | `BYEAR = 261` (annualisation default), `ArrayLike` alias |
 
 How the contract is implemented, and the pattern to follow when adding a function:
