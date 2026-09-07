@@ -106,7 +106,10 @@ def get_params():
 @pytest.mark.parametrize("data, relative, expected", get_params())
 def test_total_returns_relative(expected, data, relative):
     obtained = stats.total_returns(data, relative=relative)
-    np.testing.assert_almost_equal(expected, obtained)
+    if isinstance(expected, pd.Series):
+        pd.testing.assert_series_equal(expected, obtained)
+    else:
+        np.testing.assert_almost_equal(expected, obtained)
 
 
 def test_total_returns_dataframe_returns_series():
