@@ -102,6 +102,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Use an explicit column Index in the window engine for compatibility with
+  pandas 2.3 type annotations on Python 3.10.
+
 - Expose `qnt.rolling` on package import and preserve ndarray outputs for
   positional rolling volatility and expanding drawdown/drawup calls.
 - Honor rolling volatility `min_periods`, including partial and duration

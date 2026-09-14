@@ -61,7 +61,9 @@ def _numeric_frame(data):
         if isinstance(data, pd.Series):
             values = data.to_numpy(dtype=float, na_value=np.nan)
             frame = pd.DataFrame(
-                values[:, None], index=data.index, columns=[data.name]
+                values[:, None],
+                index=data.index,
+                columns=pd.Index([data.name], tupleize_cols=False),
             )
         else:
             values = data.to_numpy(dtype=float, na_value=np.nan)
