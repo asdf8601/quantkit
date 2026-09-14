@@ -32,6 +32,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
+- Rewrite the decorators reference with concise descriptions and runnable examples; hide its private conversion helper.
+
 - Add a generated Markdown copy of the guides and API under `docs/reference`, with a synchronization check for pull requests.
 - Publish GitHub Pages on changes to `master` and manual runs.
 
