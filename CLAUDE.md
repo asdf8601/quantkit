@@ -36,14 +36,16 @@ uv run ty check
 
 Ruff config is in `pyproject.toml`: line length 79, numpy docstring convention, rules E/F/W/I/D. Both ruff and ty are scoped to `src/`, matching the old flake8 scope; `tests/` and `docs/` are not linted or type-checked.
 
-Docs (Sphinx + autoapi over `src/`; published to GitHub Pages on release):
+Docs (Sphinx + autoapi over `src/`; published to GitHub Pages from master):
 
 ```bash
 uv sync --group docs
 uv run make -C docs html        # output in docs/build/html
+uv run make -C docs repo        # regenerate committed docs/reference Markdown
+uv run make -C docs check-repo  # fail if committed documentation is stale
 ```
 
-Build: `uv build` (backend is `uv_build`, pure Python only). The version is the static `project.version` in `pyproject.toml`; bump it with `uv version --bump patch|minor|major` and tag the commit `vX.Y.Z` to release. Pushing a `v*` tag runs build, test, lint, then publishes docs to Pages and uploads to PyPI with `uv publish`. Record changes under `[Unreleased]` in `CHANGELOG.md` (Keep a Changelog format).
+Build: `uv build` (backend is `uv_build`, pure Python only). The version is the static `project.version` in `pyproject.toml`; bump it with `uv version --bump patch|minor|major` and tag the commit `vX.Y.Z` to release. Pushing a `v*` tag runs build, test, lint, then uploads to PyPI with `uv publish`. The separate documentation workflow validates PRs and publishes Pages from `master`. Include regenerated Markdown in every PR that changes documentation sources. Record changes under `[Unreleased]` in `CHANGELOG.md` (Keep a Changelog format).
 
 `uv.lock` is committed. Run `uv lock` after touching dependencies; CI uses `--locked` and fails if the lockfile is stale.
 

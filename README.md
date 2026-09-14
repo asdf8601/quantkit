@@ -2,6 +2,11 @@
 
 Very WIP! Finance functions.
 
+## Documentation
+
+- [Read the guides and complete API on GitHub](docs/README.md)
+- [Browse the documentation website](https://asdf8601.github.io/quantkit/)
+
 ## Installation
 
 ```bash
