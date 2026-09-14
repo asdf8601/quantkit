@@ -7,6 +7,59 @@ import pytest
 from quantkit.portfolio import flows, returns, risk, tail_risk, valuation
 
 
+@pytest.mark.parametrize("reverse_cash_order", [False, True])
+def test_timestamped_cash_balances_deposits_purchase_and_withdrawal(
+    reverse_cash_order,
+):
+    times = pd.DatetimeIndex(
+        [
+            "2025-01-02 10:00",
+            "2025-01-02 12:00",
+            "2025-01-02 14:00",
+            "2025-01-03 10:00",
+            "2025-01-03 12:00",
+            "2025-01-03 14:00",
+        ],
+        name="timestamp",
+    )
+    # Start with 70 shares at $100 and $3,000 in cash (NAV $10,000).
+    # Deposit $5,000; buy 20 shares for $2,000; price rises to $110;
+    # deposit another $1,000; withdraw $2,000. No fees or other movements.
+    quantities = pd.DataFrame({"stock": [70., 70., 90., 90., 90., 90.]}, index=times)
+    prices = pd.DataFrame({"stock": [100., 100., 100., 110., 110., 110.]}, index=times)
+    cash = pd.Series([3000., 8000., 6000., 6000., 7000., 5000.], index=times)
+    external = pd.Series([0., 5000., 0., 0., 1000., -2000.], index=times)
+    if reverse_cash_order:
+        cash = cash.iloc[::-1]  # Balances align by timestamp, not position.
+
+    position_values = valuation.position_values(quantities, prices)
+    nav = valuation.net_asset_value(position_values, cash=cash)
+    pd.testing.assert_series_equal(
+        nav,
+        pd.Series([10000., 15000., 15000., 15900., 16900., 14900.], index=times),
+    )
+    # The purchase moves cash into securities without changing NAV.
+    assert position_values.iloc[2, 0] - position_values.iloc[1, 0] == 2000.
+    assert nav.iloc[2] == nav.iloc[1]
+
+    # Snapshots include the flow at each interval's end. Purchases are
+    # internal transfers, so they are not included in external flows.
+    beginning = nav.shift(1).iloc[1:]
+    ending = nav.iloc[1:]
+    external = external.iloc[1:]
+    pd.testing.assert_series_equal(
+        flows.profit_loss(beginning, ending, external),
+        pd.Series([0., 0., 900., 0., 0.], index=times[1:]),
+    )
+    pd.testing.assert_series_equal(
+        flows.period_return(beginning, ending, external, flow_timing="end"),
+        pd.Series([0., 0., .06, 0., 0.], index=times[1:]),
+    )
+    assert flows.time_weighted_return(
+        beginning, ending, external, flow_timing="end"
+    ) == pytest.approx(.06)
+
+
 def test_deposit_does_not_create_performance():
     times = pd.Index(["deposit", "market_gain"], name="period")
     beginning_positions = pd.DataFrame({"stock": [100., 200.]}, index=times)

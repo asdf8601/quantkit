@@ -183,3 +183,6 @@ tags
 
 # git worktrees
 .worktree/
+
+# Local marimo sessions
+__marimo__/

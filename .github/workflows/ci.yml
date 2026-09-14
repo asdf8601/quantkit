@@ -47,6 +47,17 @@ jobs:
       - run: uv run ruff format --check
       - run: uv run ty check
 
+  examples:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - run: uv sync --locked --no-default-groups --group examples --group test
+      - run: uv run --group examples pytest tests/test_notebooks.py -q
+      - run: uv run --group examples marimo check --strict examples/notebooks/0*.py
+
   pypi:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [build, test, lint]

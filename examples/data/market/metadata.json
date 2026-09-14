@@ -1,0 +1,29 @@
+{
+  "source": "Yahoo Finance via yfinance",
+  "source_url": "https://finance.yahoo.com/",
+  "yfinance_version": "1.7.0",
+  "downloaded_at_utc": "2026-09-14T13:37:48.379674+00:00",
+  "tickers": [
+    "SPY",
+    "QQQ",
+    "TLT",
+    "GLD"
+  ],
+  "currency": "USD",
+  "interval": "1d",
+  "start_inclusive": "2018-01-01",
+  "end_exclusive": "2026-01-01",
+  "auto_adjust": false,
+  "back_adjust": false,
+  "repair": false,
+  "first_date": "2018-01-02",
+  "last_date": "2025-12-31",
+  "rows": 8044,
+  "fields": {
+    "Close": "close",
+    "Adj Close": "adjusted_close",
+    "Dividends": "dividends",
+    "Stock Splits": "stock_splits"
+  },
+  "sha256": "9f4d0467467b6f439f8df65b8a2d48596b454f63ffa6e60e502379031842d8fb"
+}

@@ -41,6 +41,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Three interactive marimo tutorials in English with visible calculation
+  cells, covering a quickstart, advanced risk analysis and hypothetical
+  portfolios using the shared historical snapshot.
+
+- A one-time example data downloader with a reusable CSV snapshot and source
+  metadata, using dependencies isolated in the optional `examples` group.
+
 - Portfolio P&L, interval returns adjusted for external flows and time-weighted
   returns with explicit beginning/end flow timing.
 - Covariance-based portfolio variance, volatility and per-asset risk
