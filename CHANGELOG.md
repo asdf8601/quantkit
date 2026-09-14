@@ -33,6 +33,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Portfolio P&L, interval returns adjusted for external flows and time-weighted
+  returns with explicit beginning/end flow timing.
+- Covariance-based portfolio variance, volatility and per-asset risk
+  contributions, plus historical Expected Shortfall and compounded-wealth CDaR.
 - Portfolio valuation, gross/net exposure, leverage, weights, concentration,
   weighted returns and executed-trade turnover in `quantkit.portfolio`, with
   strict NumPy/pandas shape and label alignment and explicit cash handling.

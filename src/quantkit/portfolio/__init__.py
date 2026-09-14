@@ -1,5 +1,23 @@
 """Portfolio valuation, composition and weighted performance statistics."""
 
-from . import exposure, returns, turnover, valuation, weights
+from . import (
+    exposure,
+    flows,
+    returns,
+    risk,
+    tail_risk,
+    turnover,
+    valuation,
+    weights,
+)
 
-__all__ = ["exposure", "returns", "turnover", "valuation", "weights"]
+__all__ = [
+    "exposure",
+    "flows",
+    "returns",
+    "risk",
+    "tail_risk",
+    "turnover",
+    "valuation",
+    "weights",
+]
