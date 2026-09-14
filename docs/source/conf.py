@@ -238,6 +238,8 @@ def setup(app):
     def skip_internal_decorator(app, what, name, obj, skip, options):
         if name == 'quantkit.decorators._np2pd':
             return True
+        if name.startswith(('quantkit._windows', 'quantkit._window_drawdown')):
+            return True
         return None
 
     app.connect('autoapi-skip-member', skip_internal_decorator)

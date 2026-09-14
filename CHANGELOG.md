@@ -43,6 +43,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Rolling and expanding versions of all 40 scalar statistics, plus drawup,
+  Expected Shortfall and CDaR. Windows support row counts and fixed durations,
+  preserve NumPy/pandas containers and align benchmark Series by index.
+- A window statistics guide and visible rolling/expanding examples in the
+  advanced marimo notebook.
+
 - Three interactive marimo tutorials in English with visible calculation
   cells, covering a quickstart, advanced risk analysis and hypothetical
   portfolios using the shared historical snapshot.
@@ -95,6 +101,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   are gone.
 
 ### Fixed
+
+- Expose `qnt.rolling` on package import and preserve ndarray outputs for
+  positional rolling volatility and expanding drawdown/drawup calls.
+- Honor rolling volatility `min_periods`, including partial and duration
+  windows, and return NaN for relative drawdown at a zero denominator.
 
 - `conventions.ArrayLike` referenced `np.array` (a function) instead of
   `np.ndarray`.

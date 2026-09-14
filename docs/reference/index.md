@@ -6,5 +6,6 @@
 
 * [Install](install.md)
 * [Quick Start](quickstart.md)
+* [Window statistics](windows.md)
 * [Portfolio statistics](portfolios.md)
 * [API Reference](autoapi/index.md)

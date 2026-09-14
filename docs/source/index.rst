@@ -7,6 +7,7 @@ Welcome to quantkit's documentation!
 
    install.rst
    quickstart.rst
+   windows.rst
    portfolios.rst
 
 

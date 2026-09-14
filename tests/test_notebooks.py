@@ -65,6 +65,18 @@ def test_quickstart_compounds_observed_prices(run_notebook, selection):
 def test_advanced_runs_offline(run_notebook):
     definitions = run_notebook("02_advanced")
     assert np.isfinite(definitions["asset_returns"].to_numpy()).all()
+    drawdowns = definitions["window_drawdowns"]
+    expanding = drawdowns["Expanding maximum drawdown"]
+    assert (expanding.diff().dropna() <= 0).all()
+    assert expanding.iloc[-1] == pytest.approx(
+        definitions["results"]["max_drawdown"]
+    )
+    rolling = drawdowns.dropna()
+    assert (
+        rolling["Rolling maximum drawdown"]
+        <= rolling["Rolling drawdown"] + 1e-14
+    ).all()
+    assert not definitions["window_ratios"].dropna().empty
 
 
 def test_advanced_identical_benchmark_and_short_window(run_notebook):

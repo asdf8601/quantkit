@@ -15,7 +15,6 @@ def _():
     from _data import load_prices
 
     import quantkit as qnt
-    import quantkit.rolling  # Load the submodule for qnt.rolling.
 
     mo.show_code(position="above")
     return (
@@ -25,7 +24,6 @@ def _():
         pd,
         px,
         qnt,
-        quantkit,
     )
 
 
@@ -78,7 +76,7 @@ def _(mo, tickers, years):
         step=21,
         value=63,
         show_value=True,
-        label="Volatility window (sessions)",
+        label="Rolling window (sessions)",
     )
     confidence_control = mo.ui.slider(
         start=0.90,
@@ -362,6 +360,76 @@ def _(asset, drawdown, mo, px, rolling_volatility, wealth):
         position="above",
     )
     return
+
+
+@app.cell(hide_code=False)
+def _(mo):
+    mo.md(r"""
+    ## Rolling and expanding statistics
+
+    `qnt.stats` summarizes a whole series. `qnt.rolling` repeats the
+    calculation over trailing windows; `qnt.expanding` uses all observations
+    so far.
+
+    Rolling **drawdown** compares today's wealth with the highest wealth in
+    the window. Rolling **maximum drawdown** finds the worst peak-to-trough
+    fall entirely inside that window. Taking a rolling minimum of the global
+    drawdown would retain peaks from outside the window and give a different
+    answer. Expanding maximum drawdown remembers the worst fall since
+    inception.
+
+    Here, a window of 63 wealth observations spans 62 return intervals.
+    The Sharpe and beta windows contain 63 daily returns instead. The window
+    controls the sample; the explicit annualization factor controls the scale.
+    """)
+    return
+
+
+@app.cell(hide_code=False)
+def _(mo, pd, px, qnt, wealth, window_control):
+    window_drawdowns = pd.DataFrame(
+        {
+            "Rolling drawdown": qnt.rolling.drawdown(
+                wealth, window=int(window_control.value)
+            ),
+            "Rolling maximum drawdown": qnt.rolling.max_drawdown(
+                wealth, window=int(window_control.value)
+            ),
+            "Expanding maximum drawdown": qnt.expanding.max_drawdown(wealth),
+        }
+    )
+    _figure = px.line(
+        window_drawdowns * 100,
+        title="Drawdowns: the current window versus history so far",
+        labels={"value": "Drawdown (%)", "date": "Date", "variable": "Metric"},
+    )
+    mo.show_code(mo.ui.plotly(_figure), position="above")
+    return (window_drawdowns,)
+
+
+@app.cell(hide_code=False)
+def _(
+    asset, asset_returns, benchmark_returns, mo, np, pd, qnt, window_control
+):
+    window_ratios = pd.DataFrame(
+        {
+            "Annualized rolling Sharpe": qnt.rolling.sharpe_ratio(
+                asset_returns[asset],
+                risk_free=0.0,
+                window=int(window_control.value),
+                factor=np.sqrt(252),
+            ),
+            "Rolling beta": qnt.rolling.beta(
+                asset_returns[asset],
+                benchmark_returns,
+                window=int(window_control.value),
+            ),
+        }
+    )
+    mo.show_code(
+        mo.ui.table(window_ratios.tail(10), selection=None), position="above"
+    )
+    return (window_ratios,)
 
 
 @app.cell(hide_code=False)
