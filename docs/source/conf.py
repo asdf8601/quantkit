@@ -193,6 +193,7 @@ import sys
 from pathlib import Path
 SRC_DIR = str(Path(__file__).parent.parent.parent)
 sys.path.insert(0, SRC_DIR)
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 autosummary_generate = True
 html_theme = 'sphinx_rtd_theme'
 numpydoc_show_class_members = False
@@ -217,6 +218,10 @@ def setup(app):
     """
     import hashlib
 
+    from github_markdown import GitHubMarkdownTranslator
+
+    app.set_translator('markdown', GitHubMarkdownTranslator, override=True)
+
     from numpydoc import numpydoc as _numpydoc
 
     def mangle_docstrings(app, what, name, obj, options, lines):
@@ -229,3 +234,11 @@ def setup(app):
             app.disconnect(listener.id)
             break
     app.connect("autodoc-process-docstring", mangle_docstrings)
+
+# Materialize the same documentation for browsing directly on GitHub.
+extensions.append('sphinx_markdown_builder')
+markdown_flavor = 'github'
+markdown_file_suffix = '.md'
+markdown_uri_doc_suffix = '.md'
+markdown_anchor_sections = True
+markdown_anchor_signatures = True
