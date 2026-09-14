@@ -235,6 +235,13 @@ def setup(app):
             break
     app.connect("autodoc-process-docstring", mangle_docstrings)
 
+    def skip_internal_decorator(app, what, name, obj, skip, options):
+        if name == 'quantkit.decorators._np2pd':
+            return True
+        return None
+
+    app.connect('autoapi-skip-member', skip_internal_decorator)
+
 # Materialize the same documentation for browsing directly on GitHub.
 extensions.append('sphinx_markdown_builder')
 markdown_flavor = 'github'
