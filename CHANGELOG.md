@@ -32,6 +32,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
+- Expand Quick Start with executable price, return, risk and portfolio examples, including expected results.
+
 - Rewrite the decorators reference with concise descriptions and runnable examples; hide its private conversion helper.
 
 - Add a generated Markdown copy of the guides and API under `docs/reference`, with a synchronization check for pull requests.
