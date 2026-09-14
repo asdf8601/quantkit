@@ -33,6 +33,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Portfolio valuation, gross/net exposure, leverage, weights, concentration,
+  weighted returns and executed-trade turnover in `quantkit.portfolio`, with
+  strict NumPy/pandas shape and label alignment and explicit cash handling.
 - Drawup family, the mirror image of drawdown (Vecer, 2006):
   `expanding.drawup` and `stats.max_drawup`.
 - Maximum drawdown details: `max_drawdown_peak`, `max_drawdown_valley`,

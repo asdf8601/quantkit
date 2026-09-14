@@ -2,9 +2,9 @@
 
 from importlib.metadata import version
 
-from . import core, decorators, expanding, stats, utils
+from . import core, decorators, expanding, portfolio, stats, utils
 
 __version__ = version("quantkit")
 
 
-__all__ = ["core", "decorators", "stats", "utils", "expanding"]
+__all__ = ["core", "decorators", "stats", "utils", "expanding", "portfolio"]
